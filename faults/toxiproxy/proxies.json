@@ -1,0 +1,26 @@
+[
+  {
+    "name": "event-jdbc",
+    "listen": "127.0.0.1:15433",
+    "upstream": "127.0.0.1:5432",
+    "enabled": true
+  },
+  {
+    "name": "booking-redis",
+    "listen": "127.0.0.1:16379",
+    "upstream": "127.0.0.1:6379",
+    "enabled": true
+  },
+  {
+    "name": "gateway-booking-http",
+    "listen": "127.0.0.1:18082",
+    "upstream": "127.0.0.1:8082",
+    "enabled": true
+  },
+  {
+    "name": "booking-amqp",
+    "listen": "127.0.0.1:15673",
+    "upstream": "127.0.0.1:5672",
+    "enabled": true
+  }
+]

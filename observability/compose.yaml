@@ -1,0 +1,115 @@
+# Kho quan sát trên máy quan sát (exp-obs): Collector gateway, Prometheus, Loki, Tempo, Grafana.
+# Chạy: docker compose -p flash-ticket-obs-pinned --env-file ../inventory/oracle-exp.env up -d
+# Khác bản đang chạy: đường dẫn cấu hình tương đối trong repo; IP riêng lấy từ biến OBS_PRIVATE_IP;
+# dữ liệu ghi vào ${RCA_LAB_DATA}; bí mật ở ${RCA_LAB_SECRETS}; volume giữ tên cũ để dùng lại dữ liệu.
+# Image ghim theo digest, giống bản đang chạy.
+services:
+  prometheus:
+    image: prom/prometheus@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
+    mem_limit: 3072m
+    command:
+    - --config.file=/etc/prometheus/config.yaml
+    - --web.enable-otlp-receiver
+    - --storage.tsdb.path=/prometheus
+    - --storage.tsdb.retention.time=30d
+    - --storage.tsdb.retention.size=40GB
+    ports:
+    - 127.0.0.1:9090:9090
+    volumes:
+    - ./prometheus/prometheus.yaml:/etc/prometheus/config.yaml:ro
+    - prometheus-data:/prometheus
+    container_name: flash-ticket-obs-prometheus
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  loki:
+    image: grafana/loki@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+    mem_limit: 1g
+    user: 0:0
+    command:
+    - -config.file=/etc/loki/config.yaml
+    ports:
+    - 127.0.0.1:3100:3100
+    volumes:
+    - ./loki/loki.yaml:/etc/loki/config.yaml:ro
+    - loki-data:/loki
+    container_name: flash-ticket-obs-loki
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  tempo:
+    image: grafana/tempo@sha256:64e2fbd56d9c2b3412a4b430a58ea59e91a670b1e75f920a0c702213ad145044
+    mem_limit: 2g
+    user: 0:0
+    command:
+    - --config.file=/etc/tempo/config.yaml
+    environment:
+      GOMEMLIMIT: 1536MiB
+    ports:
+    - 127.0.0.1:3200:3200
+    - 127.0.0.1:14317:4317
+    volumes:
+    - ./tempo/tempo.yaml:/etc/tempo/config.yaml:ro
+    - tempo-data:/var/tempo
+    container_name: flash-ticket-obs-tempo
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  grafana:
+    image: grafana/grafana@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
+    mem_limit: 768m
+    env_file:
+    - ${RCA_LAB_SECRETS:-/etc/rca-lab}/grafana.env
+    ports:
+    - ${OBS_PRIVATE_IP}:3000:3000
+    volumes:
+    - grafana-data:/var/lib/grafana
+    - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    - ${RCA_LAB_DATA:-/srv/rca-lab}/rca-results:/usr/share/grafana/public/rca:ro
+    container_name: flash-ticket-obs-grafana
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    environment:
+      GF_PLUGINS_PREINSTALL_SYNC: yesoreyeram-infinity-datasource@4.1.6
+  collector:
+    image: otel/opentelemetry-collector-contrib@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
+    mem_limit: 768m
+    user: 0:0
+    network_mode: host
+    command:
+    - --config=/etc/otel/config.yaml
+    volumes:
+    - ./collector/gateway.yaml:/etc/otel/config.yaml:ro
+    - ${RCA_LAB_DATA:-/srv/rca-lab}/collector-gateway:/data
+    container_name: flash-ticket-obs-collector
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    environment:
+      OBS_PRIVATE_IP: ${OBS_PRIVATE_IP}
+volumes:
+  prometheus-data:
+    name: flash-ticket-obs-pinned_prometheus-data
+  loki-data:
+    name: flash-ticket-obs-pinned_loki-data
+  tempo-data:
+    name: flash-ticket-obs-pinned_tempo-data
+  grafana-data:
+    name: flash-ticket-obs-pinned_grafana-data

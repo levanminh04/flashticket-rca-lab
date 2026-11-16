@@ -1,0 +1,11 @@
+# Nạp dashboard từ file; thư mục con thành thư mục Grafana.
+apiVersion: 1
+providers:
+  - name: rca-g2
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: true

@@ -1,0 +1,33 @@
+# Danh sách máy của môi trường thử. Đổi cloud thì thêm một file mới cùng dạng (ví dụ aws-exp.yaml)
+# và một file .env tương ứng; cấu hình trong observability/ không phải sửa.
+# Khóa SSH không nằm trong repo (trên laptop: D:/RCA-ext/keys/).
+environment: oracle-exp
+hosts:
+  observability:
+    name: exp-obs
+    cloud: oracle
+    arch: arm64
+    public_ip: 213.35.116.128
+    private_ip: 10.0.0.215
+    user: ubuntu
+    runs: [collector-gateway, prometheus, loki, tempo, grafana, campaign-runner]
+  application:
+    name: exp-app
+    cloud: oracle
+    arch: arm64
+    public_ip: 129.221.208.47
+    private_ip: 10.0.0.158
+    user: ubuntu
+    runs: [flashticket-compose, collector-agent, toxiproxy, vnpay-mock]
+  load-generator:
+    name: load-generator
+    cloud: aws
+    arch: amd64
+    public_ip: 3.24.8.49
+    user: ubuntu
+    runs: [k6]
+firewall:
+  - from: load-generator
+    to: application
+    ports: [8080, 8081]
+    note: Oracle Security List và iptables trên exp-app
