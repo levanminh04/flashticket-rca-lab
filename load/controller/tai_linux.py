@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """L1 journey workload controller. Python 3.12 standard library, on exp-obs.
 
-Deploy beside linux-source-manifest.json, k6/, linux-support/ and keys/.
+Chạy từ bản git của repo lab (/opt/rca-lab). Địa chỉ máy đọc từ inventory/ (campaigns/lib/inventory.py);
+khóa bộ điều khiển ở /etc/rca-lab/controller/ (Q1(b), T-066); trạng thái, sổ sự kiện, STOP và đầu ra
+ở RCA_LAB_LOAD_STATE (mặc định /srv/rca-lab/load-controller). Phiên bản nguồn là commit git của repo lab
+(thay linux-source-manifest.json của bản chạy cũ ~/rca-dieu-phoi).
 Credentials remain on exp-app and in the existing load-host secret file.
 All subprocess output is captured; the CLI emits exactly one JSON record.
 """
@@ -20,9 +23,18 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parent
+REPO = ROOT.parents[1]
+sys.path.insert(0, str(REPO))
+from campaigns.lib import inventory  # noqa: E402
+
+STATE = Path(os.environ.get('RCA_LAB_LOAD_STATE', '/srv/rca-lab/load-controller'))
+KEYDIR = Path(os.environ.get('RCA_LAB_CONTROLLER_KEYS', '/etc/rca-lab/controller'))
 TRANSPORT = 'http://127.0.0.1:19091'
-TARGETS = {'app': ('129.221.208.47', 'exp-app.key'),
-           'tai': ('3.24.8.49', 'may-tai.pem')}
+TARGETS = {'app': (inventory.public_ip('application'), 'id_ed25519'),
+           'tai': (inventory.public_ip('load-generator'), 'id_ed25519')}
+# Tên nguồn cũ (bản ~/rca-dieu-phoi) → đường dẫn trong repo lab
+NGUON = {'k6/hanh-trinh.js': REPO / 'load/scenarios/purchase-journey.js',
+         'k6/cau-hinh.json': REPO / 'load/profiles/purchase-journey.json'}
 
 
 class Failure(Exception):
@@ -38,7 +50,7 @@ def digest(path):
 
 
 def event(kind, detail):
-    with (ROOT / 'tai-linux-events.jsonl').open('a', encoding='utf-8') as f:
+    with (STATE / 'tai-linux-events.jsonl').open('a', encoding='utf-8') as f:
         f.write(json.dumps({'utc': utc(), 'kind': kind, 'detail': detail}) + '\n')
 
 
@@ -60,18 +72,18 @@ def run(args, data=None, timeout=60, label='subprocess'):
 def options(machine):
     _, key = TARGETS[machine]
     for name in (key, 'known_hosts'):
-        p = ROOT / 'keys' / name
+        p = KEYDIR / name
         if not p.is_file() or (p.stat().st_mode & 0o777) != 0o600:
             raise Failure('SSH key/known_hosts missing or permissions differ from 0600')
-    return ['-i', str(ROOT / 'keys' / key), '-o', 'BatchMode=yes',
+    return ['-i', str(KEYDIR / key), '-o', 'BatchMode=yes',
             '-o', 'IdentitiesOnly=yes', '-o', 'ConnectTimeout=15',
             '-o', 'StrictHostKeyChecking=yes',
-            '-o', 'UserKnownHostsFile=' + str(ROOT / 'keys' / 'known_hosts'),
+            '-o', 'UserKnownHostsFile=' + str(KEYDIR / 'known_hosts'),
             '-o', 'ServerAliveInterval=20', '-o', 'ServerAliveCountMax=3']
 
 
 def ssh(machine, command, data=None, timeout=120, mutation=None, ignore_stop=False):
-    if not ignore_stop and (ROOT / 'STOP').exists():
+    if not ignore_stop and (STATE / 'STOP').exists():
         raise Failure('STOP exists on exp-obs; remote command refused')
     if mutation:
         event('mutation_begin', {'machine': machine, 'command': mutation,
@@ -87,26 +99,45 @@ def remote_python(machine, source, mutation=None, timeout=120):
     return json.loads(ssh(machine, 'python3 -', source.encode(), timeout, mutation))
 
 
+def path_of(name):
+    if name in NGUON:
+        return NGUON[name]
+    if name.startswith('linux-support/'):
+        return ROOT / 'support' / name.split('/', 1)[1]
+    raise Failure('Unknown source name')
+
+
+def source_bytes(name):
+    data = path_of(name).read_bytes()
+    if name == 'k6/cau-hinh.json':  # profile giữ chỗ {application.public_ip}; thay bằng inventory
+        data = inventory.render(data.decode('utf-8')).encode('utf-8')
+    return data
+
+
 def source(name):
-    return (ROOT / name).read_text(encoding='utf-8-sig')
+    return source_bytes(name).decode('utf-8-sig')
 
 
 def verify_sources():
-    manifest = json.loads(source('linux-source-manifest.json'))
-    for name, info in manifest['files'].items():
-        p = ROOT / name
-        if Path(name).is_absolute() or '..' in Path(name).parts or not p.is_file():
-            raise Failure('Invalid or missing source manifest entry')
-        if digest(p) != info['sha256']:
-            raise Failure('Source hash mismatch: ' + name)
-    return manifest
+    """Phiên bản là commit git (luật 1 của repo lab): cây làm việc phải sạch ở các thư mục dùng tới."""
+    def git(*a):
+        return subprocess.run(['git', '-C', str(REPO), *a], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              timeout=30, check=True).stdout.decode().strip()
+    try:
+        commit = git('rev-parse', 'HEAD')
+        dirty = git('status', '--porcelain', '--', 'load', 'campaigns', 'inventory')
+    except (OSError, subprocess.SubprocessError):
+        raise Failure('Cannot read lab git commit') from None
+    if dirty:
+        raise Failure('Lab working tree is dirty under load/campaigns/inventory')
+    return {'labCommit': commit, 'environment': inventory.moi_truong()}
 
 
 def guard():
-    if (ROOT / 'STOP').exists():
+    if (STATE / 'STOP').exists():
         raise Failure('STOP exists on exp-obs; no load/login/recovery')
-    begin = ROOT / 'EXP-APP-BAO-TRI-1-BAT-DAU'
-    end = ROOT / 'EXP-APP-BAO-TRI-1-XONG'
+    begin = STATE / 'EXP-APP-BAO-TRI-1-BAT-DAU'
+    end = STATE / 'EXP-APP-BAO-TRI-1-XONG'
     if begin.exists():
         if not end.exists():
             raise Failure('exp-app maintenance: completion marker missing')
@@ -146,7 +177,7 @@ def renew_tokens(count):
     for item in pool['tokens']:
         if not item.get('access_token') or not item.get('refresh_token'):
             raise Failure('PKCE pool incomplete; secrets omitted')
-    path = '/opt/rca-tai/secret/l1-tokens.json'
+    path = '/etc/rca-lab/load-secret/l1-tokens.json'
     before = ssh('tai', f'test ! -f {path} || sha256sum {path}').decode().split()
     ssh('tai', f'umask 077; cat > {path}; chmod 600 {path}', payload,
         mutation='umask 077; cat [in-memory PKCE pool] > ' + path + '; chmod 600')
@@ -198,19 +229,19 @@ def start(args, manifest):
     if step and step >= seconds:
         raise Failure('BuocTai must be earlier than Seconds')
     # Refuse a reused tag before any login or token-file mutation.
-    ssh('tai', 'test ! -e /opt/rca-tai/out/' + tag)
+    ssh('tai', 'test ! -e /srv/rca-lab/load-runs/' + tag)
     cfg = json.loads(source('k6/cau-hinh.json'))
     metadata = preflight(cfg['maxVUs'] * (2 if step else 1), force=True)
     if step and metadata['tokens']['minRefreshRemaining'] <= step + 60:
         raise Failure('Idle second-scenario seed expires before step; choose an earlier step')
-    files = {n: base64.b64encode((ROOT / 'k6' / n).read_bytes()).decode()
+    files = {n: base64.b64encode(source_bytes('k6/' + n)).decode()
              for n in ('hanh-trinh.js', 'cau-hinh.json')}
     config = {'scenario': 'hanh-trinh', 'seconds': seconds, 'rate': cfg['rate'], 'timeUnit': '10s',
               'multiplier': mult, 'stepSeconds': step, 'mockTransport': TRANSPORT}
     prepare = '''import base64,hashlib,json,pathlib,subprocess
 if subprocess.check_output(['sudo','-n','docker','ps','-q','--filter','name=rca-tai-']).strip():
     raise SystemExit(2)
-root=pathlib.Path('/opt/rca-tai/out/''' + tag + "')\nroot.mkdir()\n"
+root=pathlib.Path('/srv/rca-lab/load-runs/''' + tag + "')\nroot.mkdir()\n"
     prepare += 'files=' + repr(files) + '\n'
     prepare += "for name,value in files.items(): (root/name).write_bytes(base64.b64decode(value))\n"
     prepare += "(root/'token-metadata.json').write_text(" + repr(json.dumps(metadata)) + ")\n"
@@ -218,18 +249,18 @@ root=pathlib.Path('/opt/rca-tai/out/''' + tag + "')\nroot.mkdir()\n"
     prepare += "(root/'inputs.sha256').write_text(''.join(hashlib.sha256((root/n).read_bytes()).hexdigest()+'  '+n+'\\n' for n in files))\n"
     prepare += "print(json.dumps({'prepared':True}))\n"
     remote_python('tai', prepare, mutation='mkdir out/' + tag + '; snapshot verified k6, run.json, token metadata, inputs.sha256')
-    out = '/opt/rca-tai/out/' + tag
+    out = '/srv/rca-lab/load-runs/' + tag
     command = f'''set -euo pipefail
 date -u --iso-8601=seconds > {out}/start-utc.txt
 sudo -n docker run -d --name rca-tai-{tag} --user "$(id -u):$(id -g)" --network host \\
- -v {out}:/scripts:ro -v /opt/rca-tai/secret:/secret:ro -v {out}:/out \\
+ -v {out}:/scripts:ro -v /etc/rca-lab/load-secret:/secret:ro -v {out}:/out \\
  -e FT_TEST_ENVIRONMENT=true -e FT_LOAD_SECONDS={seconds} -e FT_JOURNEY_RATE={cfg['rate']} \\
  -e FT_LOAD_MULTIPLIER={mult} -e FT_LOAD_STEP_SECONDS={step} -e FT_MOCK_TRANSPORT_URL={TRANSPORT} \\
  {shlex.quote(cfg['image'])} run --quiet --log-format raw --out json=/out/raw.json --out csv=/out/raw.csv --summary-export /out/summary.json /scripts/hanh-trinh.js
 '''
     container = ssh('tai', 'bash -s', command.encode(), mutation=command).decode().strip()
     return {'tag': tag, 'containerId': container, 'run': config,
-            'sourceManifestSha256': digest(ROOT / 'linux-source-manifest.json'), 'preflight': metadata}
+            'labCommit': manifest['labCommit'], 'preflight': metadata}
 
 
 def get(tag):
@@ -247,7 +278,7 @@ def stop(tag):
 def receive(tag):
     if get(tag)['Running']:
         raise Failure('Container is running; receive refused, data retained')
-    root = '/opt/rca-tai/out/' + tag
+    root = '/srv/rca-lab/load-runs/' + tag
     # Repeated receives preserve the first frozen export rather than rewriting its times/hashes.
     command = f'''set -euo pipefail
 cd {root}
@@ -261,7 +292,7 @@ fi
 sha256sum --status -c outputs.sha256
 '''
     ssh('tai', 'bash -s', command.encode(), mutation=command)
-    destination = ROOT / 'tai-out' / tag
+    destination = STATE / 'tai-out' / tag
     destination.mkdir(parents=True, exist_ok=True)
     run(['scp', '-r', *options('tai'), 'ubuntu@' + TARGETS['tai'][0] + ':' + root + '/.', str(destination)],
         timeout=600, label='SCP receive (partial output retained)')
@@ -302,6 +333,7 @@ def bounded(low, high):
 
 def main():
     os.umask(0o077)
+    STATE.mkdir(parents=True, exist_ok=True)
     parser = Parser(add_help=False)
     parser.add_argument('command', choices=['test-duong', 'start', 'get', 'stop', 'receive'])
     parser.add_argument('--tag')
@@ -317,7 +349,7 @@ def main():
         return stop(args.tag)  # Explicit emergency stop still works with STOP/hash mismatch.
     manifest = verify_sources()
     if args.command in ('start', 'test-duong', 'receive'):
-        with (ROOT / 'tai-linux.lock').open('a') as lock:
+        with (STATE / 'tai-linux.lock').open('a') as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:

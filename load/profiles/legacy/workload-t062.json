@@ -10,7 +10,7 @@
   "refreshAgeSeconds": 200,
   "mix": {"event": 50, "order": 25, "payment": 15, "tickets": 10},
   "targets": {
-    "tai": {"gateway": "http://129.221.208.47:8081", "keycloak": "http://129.221.208.47:8080"},
-    "obs": {"gateway": "http://10.0.0.158:8081", "keycloak": "http://10.0.0.158:8080"}
+    "tai": {"gateway": "http://{application.public_ip}:8081", "keycloak": "http://{application.public_ip}:8080"},
+    "obs": {"gateway": "http://{application.private_ip}:8081", "keycloak": "http://{application.private_ip}:8080"}
   }
 }

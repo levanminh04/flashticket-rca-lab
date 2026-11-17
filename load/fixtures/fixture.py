@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
+import sys
 import uuid
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from campaigns.lib import inventory  # noqa: E402
 
 ROOT = Path('/opt/rca-tai')
 
@@ -13,7 +17,7 @@ def main():
     parser.add_argument('--machine', choices=['tai', 'obs'], default='tai')
     parser.add_argument('--create-if-empty', action='store_true')
     args = parser.parse_args()
-    base = 'http://' + ('129.221.208.47' if args.machine == 'tai' else '10.0.0.158') + ':8081'
+    base = inventory.url('application', 8081, private=(args.machine != 'tai'))
     token = json.loads((ROOT/'secret/tokens.json').read_text())['access_token']
     evidence = []
     def request(method, path, body=None, key=None):

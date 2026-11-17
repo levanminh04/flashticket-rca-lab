@@ -6,6 +6,12 @@ hoặc `python3 xuat_bo_sung.py --t <t> --ra <file>`. Chỉ ĐỌC Prometheus (l
 step_seconds, result, native_timestamps}), để `m1.adapter_flashticket.normalize_metrics` đọc được khi M1-FT khai thêm
 kênh. Cửa sổ [t−300, t+300] (đủ cửa sổ phương pháp), bước 15 s như kênh không native của bộ ghim. Truy vấn theo khúc
 ≤ 10 phút (bài học sự cố 12/11 19:16Z), nghỉ 0,3 s giữa khúc; lỗi khúc được ghi, không dừng cả lượt.
+
+T-066 (repo lab): kênh `live-down` mặc định tính theo "lần dò mới nhất" (WHY-99, REVIEW-4 R9 của T-064), tổng quát
+cho ca và cửa sổ bất kỳ: lưới bước và tập URL lấy từ truy vấn cũ; giá trị tại bước s = kết quả của lần dò gần nhất trong
+(s−300, s] (1 nếu mẫu thô httpcheck_error = 1, 0 nếu httpcheck_status = 1); không có lần dò thì bỏ điểm. Cùng phép tính
+với results/T-064/kiem/r9/xuat_live_down_moi.py. `--live-down cu` giữ biểu thức T-063 để đối chiếu.
+Cửa sổ: [t − truoc, t + sau], mặc định 300/300 như cũ.
 """
 import argparse, json, sys, time, urllib.parse, urllib.request
 
@@ -57,11 +63,47 @@ def q_range(q, s, e, step):
     return r['data']['result']
 
 
+MO_TA_R9 = ('live-down theo lần dò mới nhất (WHY-99): 1 nếu kết quả dò gần nhất trong 5 phút trước bước là lỗi (mẫu thô '
+            'httpcheck_error = 1), 0 nếu là phản hồi (mẫu thô httpcheck_status = 1); dựng từ range vector, bước 15 s')
+
+
+def tho(ten, E, rong):
+    """Mẫu thô có giá trị 1 của chuỗi `ten` trong (E − rong, E], gom theo http_url."""
+    u = B + 'query?' + urllib.parse.urlencode({'query': f'{ten}[{rong}s]', 'time': E})
+    r = json.load(urllib.request.urlopen(u, timeout=60))
+    if r.get('status') != 'success':
+        raise RuntimeError(str(r)[:200])
+    out = {}
+    for x in r['data']['result']:
+        out.setdefault(x['metric'].get('http_url', ''), []).extend(float(a) for a, v in x['values'] if float(v) == 1)
+    return out
+
+
+def live_down_lan_do_moi_nhat(bundle, S, E):
+    """Tính lại `result` của bundle live-down (WHY-99). Giữ nguyên lưới bước và metric của truy vấn cũ."""
+    rong = int(E - S + 300)
+    err, ok = tho('httpcheck_error', E, rong), tho('httpcheck_status', E, rong)
+    moi = []
+    for x in bundle['result']:
+        url = x['metric'].get('http_url', '')
+        ev = sorted([(ts, 1) for ts in err.get(url, [])] + [(ts, 0) for ts in ok.get(url, [])])
+        vals = []
+        for t0, _ in x['values']:
+            s = float(t0)
+            truoc = [v for ts, v in ev if s - 300 < ts <= s]
+            if truoc:
+                vals.append([t0, str(truoc[-1])])
+        moi.append({'metric': x['metric'], 'values': vals})
+    return dict(bundle, query=MO_TA_R9, result=moi)
+
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--t', type=int, required=True); ap.add_argument('--ra')
     ap.add_argument('--step', type=int, default=15); ap.add_argument('--khuc', type=int, default=600)
+    ap.add_argument('--truoc', type=int, default=300); ap.add_argument('--sau', type=int, default=300)
+    ap.add_argument('--live-down', choices=['lan-do-moi-nhat', 'cu'], default='lan-do-moi-nhat')
     a = ap.parse_args()
-    S, E = a.t - 300, a.t + 300
+    S, E = a.t - a.truoc, a.t + a.sau
     out, loi = [], []
     for ch, q in KENH:
         gop = {}
@@ -84,8 +126,16 @@ def main():
                 if t0 not in seen:
                     seen.add(t0); vals.append([t0, v])
             res.append({'metric': g['metric'], 'values': vals})
-        out.append({'channel': ch, 'native': False, 'query': q, 'step_seconds': a.step, 'result': res, 'native_timestamps': None})
-    doc = {'phien_ban': 'T063-bo-sung-3', 't': a.t, 'cua_so': [S, E], 'loi_khuc': loi, 'bundles': out}
+        b = {'channel': ch, 'native': False, 'query': q, 'step_seconds': a.step, 'result': res, 'native_timestamps': None}
+        if ch == 'live-down' and a.live_down == 'lan-do-moi-nhat':
+            try:
+                b = live_down_lan_do_moi_nhat(b, S, E)
+            except Exception as ex:
+                loi.append({'channel': ch, 'start': S, 'error': 'live-down R9: ' + repr(ex)[:180]})
+                b = dict(b, result=[], query=MO_TA_R9)
+        out.append(b)
+    pb = 'T066-bo-sung-4-r9' if a.live_down == 'lan-do-moi-nhat' else 'T063-bo-sung-3'
+    doc = {'phien_ban': pb, 't': a.t, 'cua_so': [S, E], 'loi_khuc': loi, 'bundles': out}
     txt = json.dumps(doc, ensure_ascii=False, separators=(',', ':')) + '\n'
     if a.ra:
         open(a.ra, 'w', encoding='utf-8').write(txt)

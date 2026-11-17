@@ -4,6 +4,7 @@ set -Euo pipefail
 SHA8=${1:?sha8 (8 ký tự)}
 [ ${#SHA8} = 8 ] || { echo 'sha8 phải 8 ký tự'; exit 1; }
 A=/opt/flash-ticket-app; R=/home/ubuntu/t062
+APP_PRIVATE_IP=$(python3 "$(dirname "$(readlink -f "$0")")/../../campaigns/lib/inventory.py" get application.private_ip)
 mkdir -p $R
 # lưu image đang chạy để hoàn tác
 [ -f $R/truoc-trien-khai.json ] || docker ps --format '{{json .}}' | python3 -c '
@@ -23,7 +24,7 @@ for s in discovery-server user-service event-service ticket-service booking-serv
   ( cd $A/compose-t062 && IMAGE=$img docker compose -p flash-ticket-$s -f $s.yml up -d --force-recreate ) 2>&1 | tail -2
   p=$(port $s); ok=no
   for i in $(seq 1 60); do
-    for h in 127.0.0.1 10.0.0.158; do
+    for h in 127.0.0.1 $APP_PRIVATE_IP; do
       c=$(curl -s -o /dev/null -w '%{http_code}' -m 3 http://$h:$p/actuator/health || true)
       # 200 = health mở; 401 = service đã lên, actuator yêu cầu xác thực (gateway, event)
       case $c in 200|401) started=$(docker inspect flash-ticket-$s-$s-1 --format '{{.State.StartedAt}}'); [ "$(date -d "$started" +%s)" -lt "$(date +%s)" ] && ok=yes;; esac

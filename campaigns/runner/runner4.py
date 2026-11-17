@@ -15,19 +15,44 @@ STOP). Thay đổi có lý do: results/T-063/chay/THIET-KE-BO-CHAY-2.md (#1–#7
 - Phục hồi: M1/stage lỗi → stage lại cùng t với mã mờ mới (một lần), giữ thư mục cũ; ghi ánh xạ trong nhật ký.
 - Luật 21: lỗi một ô chỉ chặn ô đó; tải không khởi động được 2 lần → dừng lượt; dữ liệu đã thu giữ nguyên.
 Dừng khẩn: ~/rca-dieu-phoi/STOP (trên exp-obs).
+
+Repo lab (T-066, 17/11/2026): chạy từ /opt/rca-lab trên exp-obs. Địa chỉ từ inventory/; khóa bộ điều khiển
+/etc/rca-lab/controller/ (Q1(b)); dữ liệu /srv/rca-lab: runs/<lượt>/ (nhật ký, gói ca, đầu ra tải — user ubuntu, 700),
+m1/ (cases, outputs, bo-sung, v082 — vùng của phương pháp, không chứa nhãn), ledger/ (sổ tiêm, chủ ledger, 700; ghi qua
+`sudo -u ledger` bằng ledger_append.py; user rca không đọc được). Tiêm: /opt/rca-lab/faults/injectors/docker/inj3.py trên
+exp-app. M1: bản chụp mã /srv/rca-lab/m1-snapshots/<hash mã>/ (không sửa), venv /srv/rca-lab/venv-m1. Sau P7 (run_m1)
+mỗi ca chạy thêm V082 (chay_ca.py của bản chụp, cấu hình V082 trong bản chụp) và bước sau V082 (G1, chỉ mục) nếu có.
+Dùng: RCA_DP_OUT=/srv/rca-lab/runs/<lượt> python3 -B /opt/rca-lab/campaigns/runner/runner4.py thu --lich <file lịch>
+Dừng khẩn: /srv/rca-lab/runs/STOP.
 """
 import datetime as dt, hashlib, json, os, queue, secrets, subprocess, sys, threading, time, traceback
 from pathlib import Path
 
-BASE = Path('/home/ubuntu/rca-dieu-phoi')
-OUTR = Path(os.environ.get('RCA_DP_OUT', str(BASE)))  # chạy thử ngắn: RCA_DP_OUT=~/rca-dieu-phoi/thu-ngan, không lẫn sổ đợt thu
-CHAY = OUTR / 'chay'; SO = OUTR / 'tiem-loi/so-thu3.jsonl'; CA = OUTR / 'ca'
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+from campaigns.lib import inventory  # noqa: E402
+
+DATA = Path(os.environ.get('RCA_LAB_DATA', '/srv/rca-lab'))
+BASE = DATA / 'runs'
+OUTR = Path(os.environ.get('RCA_DP_OUT', str(BASE / 'mac-dinh')))
+CHAY = OUTR / 'chay'; CA = OUTR / 'ca'
+SO = DATA / 'ledger' / (OUTR.name + '.jsonl')  # sổ tiêm của lượt; chỉ user ledger đọc/ghi
+LEDGER_APPEND = REPO / 'campaigns/runner/ledger_append.py'
 STOP = BASE / 'STOP'
 SSH = 'ssh'
-KEYS = {'app': (str(BASE / 'keys/exp-app.key'), 'ubuntu@129.221.208.47')}
-KNOWN = str(BASE / 'keys/known_hosts')
-TAI = BASE / 'tai_linux.py'
-XUAT = BASE / 'xuat_bo_sung.py'
+KEYDIR = Path(os.environ.get('RCA_LAB_CONTROLLER_KEYS', '/etc/rca-lab/controller'))
+KEYS = {'app': (str(KEYDIR / 'id_ed25519'), inventory.ssh_target('application'))}
+KNOWN = str(KEYDIR / 'known_hosts')
+TAI = REPO / 'load/controller/tai_linux.py'
+XUAT = REPO / 'campaigns/runner/xuat_bo_sung.py'
+INJ = 'python3 /opt/rca-lab/faults/injectors/docker/inj3.py'  # bản git repo lab trên exp-app
+M1_ROOT = DATA / 'm1'
+M1_CODE = DATA / 'm1-snapshots' / 'b0f79a4dffd552f6e6026172b9058cd54ee9272475d927e35f19e22b04411b8d'
+VENV = DATA / 'venv-m1/bin/python'
+V082 = {'ban': 'V082-V066+H8a', 'cau_hinh': M1_CODE / 'results/T-064/bien-the/V082-V066+H8a/cau-hinh.json',
+        'cau_hinh_file_sha256': '01a64b60d84a55626154328430f6986e502c1755f4b8fe6f112749cabd739625'}
+M1_ENV = f'env RCA_M1_ROOT={M1_ROOT} RCA_M1_CODE={M1_CODE} PYTHONDONTWRITEBYTECODE=1'
+SAU_V082 = REPO / 'campaigns/runner/sau_v082.py'  # G1 + chỉ mục (T-066 bước 9); không có thì bỏ qua
 PHASE = int(os.environ.get('RCA_PHASE', '600'))  # chỉ chạy thử ngắn mới đặt; lượt chính = 600
 LOCK = threading.Lock()
 
@@ -44,15 +69,13 @@ def log(msg, **k):
 
 
 def ledger(event, **k):
+    """Ghi một dòng sổ tiêm bằng user ledger (seq, prev_sha256 do ledger_append.py tính, như bản cũ)."""
+    rec = {'utc': iso(), 'event': event, **k}
     with LOCK:
-        SO.parent.mkdir(parents=True, exist_ok=True)
-        prev, seq = '0' * 64, 0
-        if SO.exists():
-            lines = SO.read_text(encoding='utf-8').splitlines()
-            if lines:
-                prev = hashlib.sha256(lines[-1].encode()).hexdigest(); seq = json.loads(lines[-1])['seq'] + 1
-        rec = {'seq': seq, 'utc': iso(), 'event': event, **k, 'prev_sha256': prev}
-        with open(SO, 'a', encoding='utf-8') as f: f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + '\n')
+        r = subprocess.run(['sudo', '-n', '-u', 'ledger', 'python3', '-B', str(LEDGER_APPEND), str(SO)],
+                           input=json.dumps(rec, ensure_ascii=False), capture_output=True, text=True, timeout=60,
+                           encoding='utf-8', errors='replace')
+        if r.returncode != 0: raise RuntimeError(f'ghi sổ lỗi rc={r.returncode}: {r.stderr[-300:]}')
 
 
 def state(**k):
@@ -97,7 +120,7 @@ def dang_chay(r):
 
 def inj(op, cell='-', seconds=None):
     """Lỗi từ inj3 (ssh rc ≠ 0, dòng cleanup-error) được ném lên — không nuốt (REVIEW T-063 R1)."""
-    cmd = f'python3 ~/inj3.py {op} {cell}' + (f' --seconds {seconds}' if seconds else '')
+    cmd = f'{INJ} {op} {cell}' + (f' --seconds {seconds}' if seconds else '')
     recs = [json.loads(l) for l in ssh('app', cmd, timeout=120).splitlines() if l.startswith('{')]
     if any(r.get('op') == 'cleanup-error' for r in recs): raise RuntimeError(f'inj3 {op}: ' + json.dumps(recs)[-400:])
     return recs[-1] if recs else {}
@@ -158,15 +181,29 @@ def finish_load(tag):
 
 
 def nhan_ca(oid, t):
-    """Gói ghim + gói bổ sung, cục bộ trên exp-obs: ~/rca-dieu-phoi/ca/<oid>.tgz, <oid>/prometheus-bo-sung.json."""
+    """Gói ghim + gói bổ sung: runs/<lượt>/ca/<oid>.tgz; gói bổ sung (live-down theo lần dò mới nhất, WHY-99) ghi vào
+    m1/bo-sung/<oid>/ (root:rca 640) để V082 đọc, và bản chép ở runs/<lượt>/ca/<oid>/."""
     CA.mkdir(parents=True, exist_ok=True)
-    ex = ssh('obs', f'sudo python3 /home/ubuntu/t058/safe-export.py case {oid} >/dev/null && sudo tar -czf {CA}/{oid}.tgz '
-                    f'-C /opt/flash-ticket-rca cases/{oid} outputs/{oid} && sudo chown ubuntu {CA}/{oid}.tgz && sha256sum {CA}/{oid}.tgz',
+    ex = ssh('obs', f'sudo {M1_ENV} python3 -B {REPO}/campaigns/runner/safe_export.py case {oid} >/dev/null && sudo tar -czf {CA}/{oid}.tgz '
+                    f'-C {M1_ROOT} cases/{oid} outputs/{oid} && sudo chown ubuntu {CA}/{oid}.tgz && sha256sum {CA}/{oid}.tgz',
              timeout=600)
-    bs = ssh('obs', f'python3 {XUAT} --t {t}', timeout=900)
+    bs = ssh('obs', f'python3 -B {XUAT} --t {t}', timeout=900)
     (CA / oid).mkdir(parents=True, exist_ok=True)
     (CA / oid / 'prometheus-bo-sung.json').write_text(bs, encoding='utf-8')
+    dich = M1_ROOT / 'bo-sung' / oid / 'prometheus-bo-sung.json'
+    ssh('obs', f'sudo install -d -o root -g rca -m 0750 {dich.parent} && sudo install -o root -g rca -m 0640 '
+               f'{CA}/{oid}/prometheus-bo-sung.json {dich} && sudo sha256sum {dich}', timeout=60)
     return ex.split()[0], hashlib.sha256(bs.encode()).hexdigest()
+
+
+def chay_v082(oid):
+    """V082 (T-064 cau-hinh-de-xuat.json) trên ca vừa stage; user rca; mã và cấu hình từ bản chụp (kiểm hash cấu hình)."""
+    h = ssh('obs', f'sha256sum {V082["cau_hinh"]}').split()[0]
+    if h != V082['cau_hinh_file_sha256']: raise RuntimeError('cấu hình V082 lệch hash')
+    out = ssh('obs', f'sudo -n -u rca {M1_ENV} {VENV} -B {M1_CODE}/src/m1_ft/chay_ca.py --id {oid} '
+                     f'--cau-hinh {V082["cau_hinh"]} --ban {V082["ban"]} --ra {M1_ROOT}/v082 --goc {M1_ROOT} '
+                     f'--bo-sung {M1_ROOT}/bo-sung/{{id}}/prometheus-bo-sung.json', timeout=1800)
+    return json.loads(out[out.index('{'):])
 
 
 M1Q = queue.Queue()
@@ -181,12 +218,17 @@ def m1_worker():
         except KeyboardInterrupt: log('M1 bỏ qua do STOP', id=oid); continue
         for lan, ma in enumerate([oid, oid + secrets.token_hex(2)]):
             try:
-                ssh('obs', f'sudo /opt/flash-ticket-rca/venv/bin/python /opt/flash-ticket-rca/stage-m1.py --id {ma} --t {t}', timeout=900)
-                r2 = ssh('obs', f'sudo -u rca /opt/flash-ticket-rca/venv/bin/python /opt/flash-ticket-rca/run-m1.py --id {ma}', timeout=1800)
+                ssh('obs', f'sudo {M1_ENV} {VENV} -B {REPO}/campaigns/runner/stage_m1.py --id {ma} --t {t}', timeout=900)
+                r2 = ssh('obs', f'sudo -n -u rca {M1_ENV} {VENV} -B {REPO}/campaigns/runner/run_m1.py --id {ma}', timeout=1800)
                 s = json.loads(r2[r2.index('{'):])
                 tgz, bs = nhan_ca(ma, t)
                 log('M1 xong', id=ma, goc=oid, lan=lan, status=s.get('status'), deterministic=s.get('deterministic_repeat'),
                     tgz_sha256=tgz, bo_sung_sha256=bs)
+                v = chay_v082(ma)
+                log('V082 xong', id=ma, verdict=v.get('verdict'), trung_sha=v.get('trung_sha'), giay=v.get('giay_chay'))
+                if SAU_V082.exists():
+                    r3 = ssh('obs', f'python3 -B {SAU_V082} --id {ma}', timeout=900)
+                    log('sau V082 xong', id=ma, out=r3[-300:])
                 break
             except Exception as e:
                 log('M1 LỖI (chỉ chặn ca này)', id=ma, goc=oid, lan=lan, err=str(e)[-600:])
@@ -196,7 +238,7 @@ def chay_lich(lich):
     items = json.loads(Path(lich).read_text(encoding='utf-8'))['chu_ky']
     threading.Thread(target=m1_worker, daemon=True).start()
     ledger('thu3-begin', phase_s=PHASE, lich=str(lich), lich_sha256=hashlib.sha256(Path(lich).read_bytes()).hexdigest(), n=len(items))
-    ssh('app', 'python3 ~/inj3.py ensure', timeout=60)
+    ssh('app', f'{INJ} ensure', timeout=60)
     for i, it in enumerate(items):
         if stopped(): log('STOP trước chu kỳ', i=i); break
         try:
@@ -265,7 +307,7 @@ def chay_d2(cells=None):
     """Xác nhận can thiệp (ngoài chu kỳ chính): mỗi ô 150 s lỗi dưới tải, đầu dò t+45/t+140/sau+30; không phải ca RCA."""
     cells = cells or D2_CELLS; tag = 'd2b-' + secrets.token_hex(4)
     ledger('d2-begin', tag=tag, note='xác nhận can thiệp bản 2; không phải ca RCA', cells=cells)
-    ssh('app', 'python3 ~/inj3.py ensure', timeout=60)
+    ssh('app', f'{INJ} ensure', timeout=60)
     # Tải phải phủ hết D2 (lượt d2b-2a7f481a: tải 1800 s hết ở 02:53Z khi còn 2 ô — D2B-KET-QUA.md)
     t0 = start_load(tag, seconds=min(3600, 180 + 260 * len(cells) + 60)); plan = []
     try:
@@ -290,8 +332,8 @@ def chay_d2(cells=None):
 if __name__ == '__main__':
     CHAY.mkdir(parents=True, exist_ok=True)
     mode = sys.argv[1]
-    lich = sys.argv[3] if len(sys.argv) > 3 and sys.argv[2] == '--lich' else BASE / 'lich-3.json'
-    (OUTR / 'tiem-loi').mkdir(parents=True, exist_ok=True)
+    if mode == 'thu' and not (len(sys.argv) > 3 and sys.argv[2] == '--lich'): raise SystemExit('thiếu --lich <file>')
+    lich = sys.argv[3] if mode == 'thu' else None
     if mode == 'thu': chay_lich(lich)
     elif mode == 'd2': chay_d2(sys.argv[2].split(',') if len(sys.argv) > 2 and not sys.argv[2].startswith('--') else None)
     else: raise SystemExit(__doc__)
