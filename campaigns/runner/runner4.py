@@ -227,7 +227,7 @@ def m1_worker():
                 v = chay_v082(ma)
                 log('V082 xong', id=ma, verdict=v.get('verdict'), trung_sha=v.get('trung_sha'), giay=v.get('giay_chay'))
                 if SAU_V082.exists():
-                    r3 = ssh('obs', f'python3 -B {SAU_V082} --id {ma}', timeout=900)
+                    r3 = ssh('obs', f'sudo python3 -B {SAU_V082} --id {ma}', timeout=900)
                     log('sau V082 xong', id=ma, out=r3[-300:])
                 break
             except Exception as e:
