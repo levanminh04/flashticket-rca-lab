@@ -128,6 +128,21 @@
      }
     ]
    },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "indexByName": {
+       "ma": 0,
+       "nguon": 1,
+       "trang_thai_chay": 2,
+       "ket_luan": 3,
+       "tu": 4,
+       "den": 5
+      }
+     }
+    }
+   ],
    "options": {
     "showHeader": true,
     "cellHeight": "sm",

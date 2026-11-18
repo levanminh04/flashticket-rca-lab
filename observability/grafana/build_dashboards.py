@@ -116,6 +116,7 @@ def start(base_uid):
                              {'id': 'links', 'value': [{'title': 'Mở ca', 'url': '/d/t065-l8b-rca?var-ban=V082-V066%2BH8a'
                                                         '&var-ca=${__data.fields.ma}&var-op=&from=${__data.fields.tu}'
                                                         '&to=${__data.fields.den}'}]}]}]},
+         'transformations': [{'id': 'organize', 'options': {'indexByName': {c: i for i, (c, _) in enumerate(cols)}}}],
          'options': {'showHeader': True, 'cellHeight': 'sm', 'footer': {'show': False}}},
     ]
     return d

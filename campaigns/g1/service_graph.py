@@ -28,14 +28,14 @@ import pathlib
 import re
 import sys
 
-VERSION = 'service-graph-1'
+VERSION = 'service-graph-2'  # 2: ca không có đầu ra vẽ bằng nút chú thích; nhãn phụ rút gọn
 DEFAULT_DU_LIEU = '/srv/rca-lab/rca-results/t065-l11-001/du-lieu'
 BY_DB_SYSTEM = {'postgresql': 'postgresql-shared-instance', 'redis': 'cache', 'mongodb': 'mongodb-instance'}
 BY_HOST = {'postgres': 'postgresql-shared-instance', 'user-db': 'mongodb-instance', 'redis': 'cache',
            'rabbitmq': 'broker'}
 DB_KIND = 'SQL/cache'
 COLOR = {'tu_sinh': '#E02F44', 'ke_thua': '#FF9830', 'binh_thuong': '#8E8E8E'}
-LABEL = {'tu_sinh': 'tự sinh (nghi nguồn)', 'ke_thua': 'kế thừa (bị kéo theo)', 'binh_thuong': 'bình thường'}
+LABEL = {'tu_sinh': 'tự sinh', 'ke_thua': 'kế thừa', 'binh_thuong': 'bình thường'}  # nghĩa ở panel chú giải
 NOTE = ('Cạnh là quan sát trace trong cửa sổ ca, không phải đầu ra phương pháp. Cạnh dịch vụ → dịch vụ: số quan hệ '
         'span cha–con ở cửa sổ nền và sự cố. Cạnh tới hạ tầng: chỉ báo có quan sát, không đếm; chỉ vẽ khi đích '
         'ánh xạ được theo bảng ánh xạ.')
@@ -62,11 +62,18 @@ def build(case, ban, ca, src_sha):
     base = {'phien_ban': VERSION, 'ban': ban, 'ca': ca, 'cua_so_ms': case.get('cua_so_ms'),
             'nguon_file_sha256': src_sha, 'trang_thai_chay': run_state, 'chu_thich': NOTE}
     if run_state != 'OK' or not rows:
+        # Grafana's node graph refuses an empty edges frame, so the "no output" message is drawn as two annotation
+        # nodes joined by one annotation edge (detail__loai = 'chu_thich'); none of it is case data.
+        note = {'detail__lop': '', 'detail__hang': None, 'color': '#8E8E8E'}
         base.update(trang_thai='khong_co_dau_ra',
                     nut=[{'id': '__khong_co__', 'title': 'không có đầu ra', 'mainstat': run_state or '',
-                          'secondarystat': 'bản này không có xếp hạng cho ca', 'color': '#8E8E8E',
-                          'detail__lop': '', 'detail__hang': None}],
-                    canh=[], dem={})
+                          'secondarystat': 'bản này không xếp hạng ca này', **note},
+                         {'id': '__xem_bang__', 'title': 'xem bảng trạng thái', 'mainstat': '',
+                          'secondarystat': 'panel “Bản, hash, trạng thái”', **note}],
+                    canh=[{'id': '__khong_co__->__xem_bang__', 'source': '__khong_co__', 'target': '__xem_bang__',
+                           'mainstat': 'chú thích, không phải dữ liệu', 'detail__loai': 'chu_thich',
+                           'detail__so_N': None, 'detail__so_A': None, 'detail__can_cu': ''}],
+                    dem={})
         return base
     owner = {o['id']: o['chu'] for o in case['thao_tac']}
     rank = {r['entity']: r for r in rows}
