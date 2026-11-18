@@ -58,7 +58,7 @@ def incidents(base):
     d = copy.deepcopy(base)
     d.update(id=None, version=1, title='RCA — sự cố (V082, V071, P7)',
              tags=['RCA', 'T-068', 'su-co'], editable=False)
-    shift = 36  # 41 (h4) + 40 (h22) + 42/43 (h10)
+    shift = 42  # 41 (h5) + 40 (h22) + 42 (h10) + 43 (h5)
     for p in walk(d['panels']):
         if p['gridPos']['y'] >= 45:
             p['gridPos']['y'] += shift
@@ -84,10 +84,10 @@ def incidents(base):
                    'detail__chi_tiet': 'Chi tiết (DB, exchange/routing key, queue)'}
     note_cols = [('muc', 'string'), ('so', 'number'), ('chi_tiet', 'string')]
     d['panels'] += [
-        {'id': 41, 'type': 'text', 'title': 'Chú giải đồ thị dịch vụ', 'gridPos': {'x': 0, 'y': 45, 'w': 24, 'h': 4},
+        {'id': 41, 'type': 'text', 'title': 'Chú giải đồ thị dịch vụ', 'gridPos': {'x': 0, 'y': 45, 'w': 24, 'h': 5},
          'options': {'mode': 'markdown', 'content': NOTE}},
         {'id': 40, 'type': 'nodeGraph', 'title': 'Đồ thị dịch vụ — ca ${ca} — bản ${ban}',
-         'description': NOTE.replace('**', ''), 'gridPos': {'x': 0, 'y': 49, 'w': 24, 'h': 22}, 'datasource': INF,
+         'description': NOTE.replace('**', ''), 'gridPos': {'x': 0, 'y': 50, 'w': 24, 'h': 22}, 'datasource': INF,
          'targets': [infinity('nodes', graph_url, 'nut', node_cols), infinity('edges', graph_url, 'canh', edge_cols)],
          # T-068 R1: link chỉ gắn vào trường detail__url của nút (file đồ thị dựng sẵn đường dẫn đúng bản, ca,
          # cửa sổ); khung cạnh không có trường này nên cạnh không có link; nút chú thích mở bảng trạng thái.
@@ -97,7 +97,7 @@ def incidents(base):
               'url': '${__data.fields.detail__url}'}]}]}]},
          'options': {'nodes': {}, 'edges': {}}},
         {'id': 42, 'type': 'table', 'title': 'Số liệu cạnh đồ thị dịch vụ — quan sát trace, không phải đầu ra phương pháp',
-         'gridPos': {'x': 0, 'y': 71, 'w': 17, 'h': 10}, 'datasource': INF,
+         'gridPos': {'x': 0, 'y': 72, 'w': 24, 'h': 10}, 'datasource': INF,
          'targets': [infinity('canh', graph_url, 'canh', table_cols)],
          'fieldConfig': {'defaults': {'noValue': '—'}, 'overrides': []},
          'transformations': [{'id': 'filterByValue', 'options': {'type': 'exclude', 'match': 'any', 'filters': [
@@ -107,7 +107,7 @@ def incidents(base):
                                                             'renameByName': table_names}}],
          'options': {'showHeader': True, 'cellHeight': 'sm', 'footer': {'show': False}}},
         {'id': 43, 'type': 'table', 'title': 'Ghi chú đồ thị — phần không vẽ, gộp, thiếu RabbitMQ',
-         'gridPos': {'x': 17, 'y': 71, 'w': 7, 'h': 10}, 'datasource': INF,
+         'gridPos': {'x': 0, 'y': 82, 'w': 24, 'h': 5}, 'datasource': INF,
          'targets': [infinity('ghi_chu', graph_url, 'ghi_chu', note_cols)],
          'fieldConfig': {'defaults': {'noValue': '—'}, 'overrides': []},
          'transformations': [{'id': 'organize', 'options': {'indexByName': {'muc': 0, 'so': 1, 'chi_tiet': 2},

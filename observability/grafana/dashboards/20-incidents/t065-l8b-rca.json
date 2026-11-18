@@ -694,7 +694,7 @@
     "x": 0,
     "y": 45,
     "w": 24,
-    "h": 4
+    "h": 5
    },
    "options": {
     "mode": "markdown",
@@ -708,7 +708,7 @@
    "description": "Đồ thị dịch vụ (chỉ hiển thị). Nút: thành phần của ca, màu và “#hạng” theo xếp hạng của bản đang chọn (đỏ: tự sinh — nghi nguồn; cam: kế thừa — bị kéo theo; xám: bình thường). Cạnh là quan sát trace gốc trong cửa sổ ca, không phải đầu ra phương pháp. Nhãn cạnh: số ở cửa sổ nền / sự cố; dòng dưới: số span lỗi (status ERROR) nền/sự cố và p95 thời lượng (ms). Dịch vụ → dịch vụ: quan hệ span cha–con khác service (đếm span con). Dịch vụ → DB/cache: span DB phía client (không gọi là request); đích là DB theo `db.name`, gộp về instance khi `db.name` không là thực thể của ca (vd. MongoDB `user_db`). RabbitMQ: span PRODUCER dịch vụ → broker (exchange, routing key), span CONSUMER broker → dịch vụ (queue); ca không có span RabbitMQ ghi ở tiêu đề nút broker. Bảng dưới đồ thị liệt kê đủ số; bấm nút dịch vụ để mở lớp thao tác.",
    "gridPos": {
     "x": 0,
-    "y": 49,
+    "y": 50,
     "w": 24,
     "h": 22
    },
@@ -934,8 +934,8 @@
    "title": "Số liệu cạnh đồ thị dịch vụ — quan sát trace, không phải đầu ra phương pháp",
    "gridPos": {
     "x": 0,
-    "y": 71,
-    "w": 17,
+    "y": 72,
+    "w": 24,
     "h": 10
    },
    "datasource": {
@@ -1104,10 +1104,10 @@
    "type": "table",
    "title": "Ghi chú đồ thị — phần không vẽ, gộp, thiếu RabbitMQ",
    "gridPos": {
-    "x": 17,
-    "y": 71,
-    "w": 7,
-    "h": 10
+    "x": 0,
+    "y": 82,
+    "w": 24,
+    "h": 5
    },
    "datasource": {
     "type": "yesoreyeram-infinity-datasource",
@@ -1186,7 +1186,7 @@
    "title": "Trạng thái đầu ra cạnh",
    "gridPos": {
     "x": 0,
-    "y": 81,
+    "y": 87,
     "w": 24,
     "h": 3
    },
@@ -1246,7 +1246,7 @@
    "title": "Cạnh xếp hạng M1-FT — nguyên thứ tự và hạng nguồn",
    "gridPos": {
     "x": 0,
-    "y": 84,
+    "y": 90,
     "w": 24,
     "h": 10
    },
@@ -1340,7 +1340,7 @@
    "title": "Vùng nghi ngờ từ phương pháp",
    "gridPos": {
     "x": 0,
-    "y": 94,
+    "y": 100,
     "w": 24,
     "h": 5
    },
@@ -1409,7 +1409,7 @@
    "title": "Toàn bộ cờ M1 của bản đang xem",
    "gridPos": {
     "x": 0,
-    "y": 99,
+    "y": 105,
     "w": 24,
     "h": 10
    },
@@ -1498,7 +1498,7 @@
    "title": "Bằng chứng có cờ — ${dv}",
    "gridPos": {
     "x": 0,
-    "y": 109,
+    "y": 115,
     "w": 24,
     "h": 9
    },
@@ -1595,7 +1595,7 @@
    "type": "table",
    "title": "Lớp thao tác của ${dv} — kết quả truy vấn snapshot",
    "gridPos": {
-    "y": 118,
+    "y": 124,
     "h": 4,
     "w": 24,
     "x": 0
@@ -1663,7 +1663,7 @@
    "type": "table",
    "title": "Thao tác — bấm tên để xem chi tiết và bằng chứng",
    "gridPos": {
-    "y": 122,
+    "y": 128,
     "h": 13,
     "w": 24,
     "x": 0
@@ -1812,7 +1812,7 @@
    "title": "Chú giải đồ thị thao tác",
    "gridPos": {
     "x": 0,
-    "y": 135,
+    "y": 141,
     "w": 24,
     "h": 3
    },
@@ -1826,7 +1826,7 @@
    "type": "nodeGraph",
    "title": "Đồ thị thao tác — ${dv} và đầu mút qua biên",
    "gridPos": {
-    "y": 138,
+    "y": 144,
     "h": 18,
     "w": 24,
     "x": 0
@@ -2003,7 +2003,7 @@
    "type": "table",
    "title": "Chi tiết thao tác ${op:text} — điểm e chỉ ở đây/menu nút",
    "gridPos": {
-    "y": 156,
+    "y": 162,
     "h": 14,
     "w": 24,
     "x": 0
@@ -2104,7 +2104,7 @@
    "type": "table",
    "title": "Bằng chứng thao tác — ${op:text}",
    "gridPos": {
-    "y": 170,
+    "y": 176,
     "h": 9,
     "w": 24,
     "x": 0
@@ -2218,7 +2218,7 @@
    "type": "table",
    "title": "Ví dụ span cha–con đã quan sát",
    "gridPos": {
-    "y": 179,
+    "y": 185,
     "h": 8,
     "w": 24,
     "x": 0
@@ -2302,7 +2302,7 @@
    "title": "Trạng thái từng truy vấn sống — snapshot API",
    "gridPos": {
     "x": 0,
-    "y": 189,
+    "y": 195,
     "w": 24,
     "h": 9
    },
@@ -2428,7 +2428,7 @@
    "title": "Metric dev — truy vấn nguyên văn đã lưu",
    "gridPos": {
     "x": 0,
-    "y": 198,
+    "y": 204,
     "w": 24,
     "h": 6
    },
@@ -2525,7 +2525,7 @@
     "h": 9,
     "w": 8,
     "x": 0,
-    "y": 206
+    "y": 212
    },
    "datasource": {
     "type": "prometheus",
@@ -2579,7 +2579,7 @@
     "h": 9,
     "w": 8,
     "x": 8,
-    "y": 206
+    "y": 212
    },
    "datasource": {
     "type": "prometheus",
@@ -2633,7 +2633,7 @@
     "h": 9,
     "w": 8,
     "x": 16,
-    "y": 206
+    "y": 212
    },
    "datasource": {
     "type": "prometheus",
@@ -2687,7 +2687,7 @@
     "h": 10,
     "w": 12,
     "x": 0,
-    "y": 215
+    "y": 221
    },
    "datasource": {
     "type": "tempo",
@@ -2725,7 +2725,7 @@
     "h": 10,
     "w": 12,
     "x": 12,
-    "y": 215
+    "y": 221
    },
    "description": "Panel đang hiển thị dữ liệu truy vấn sống cho service và cửa sổ đã chọn. Nếu panel rỗng, đối chiếu trạng thái, số dòng và giờ truy vấn ở bảng snapshot API.",
    "datasource": {
