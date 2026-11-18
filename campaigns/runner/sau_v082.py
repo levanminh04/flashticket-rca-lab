@@ -187,27 +187,28 @@ def main():
         if ca not in v['cac_ca']:
             v['cac_ca'].append(ca)
             X.write(R / 'chi-muc-ban.json', cb)
-    do_thi = do_thi_dich_vu(pathlib.Path(a.ra) / 'du-lieu', ca) if not a.kiem_lai else None
+    do_thi = do_thi_dich_vu(pathlib.Path(a.ra) / 'du-lieu', ca, goc / 'cases' / ca) if not a.kiem_lai else None
     print(json.dumps({'ca': ca, 'ban': BAN, 'verdict': m['verdict'], 'services': len(services), 'links': n_links,
                       'output_sha256': c['sha256'], 'cau_hinh_sha256': m['extra']['m1_ft']['cau_hinh_sha256'],
                       'ma_nguon_sha256': m['extra']['m1_ft']['ma_nguon_sha256'], 'ra': str(a.ra),
                       'do_thi_dich_vu': do_thi}, ensure_ascii=False))
 
 
-def do_thi_dich_vu(du_lieu, ca):
+def do_thi_dich_vu(du_lieu, ca, goi):
     """T-068: sinh đồ thị dịch vụ SAU khi file ca và chỉ mục đã ghi. Lỗi ở bước này không làm hỏng đầu ra M1 hay
     file ca: ghi trạng thái lỗi vào service-graph/<bản>/<ca>.status.json và trả về, để lệnh vẫn thoát 0 và runner
-    không chạy lại M1. Sinh lại riêng: campaigns/g1/service_graph.py --ban <bản> --ca <ca>."""
+    không chạy lại M1. Nguồn đồ thị (service-graph-4): trace gốc của ca trong gói `goi` (<goc>/cases/<ca>/, hash
+    theo manifest.json của gói). Sinh lại riêng: campaigns/g1/service_graph.py --ban <bản> --ca <ca> --goi <gói>."""
     try:
         if os.environ.get('T068_GAY_LOI_DO_THI') == '1':  # chỉ dùng cho phép kiểm trên bản sao
             raise RuntimeError('lỗi cố ý (T068_GAY_LOI_DO_THI)')
         spec = importlib.util.spec_from_file_location('service_graph', REPO / 'campaigns/g1/service_graph.py')
         sg = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sg)
-        return {'trang_thai': 'ok', 'file': str(sg.build_one(du_lieu, BAN, ca))}
+        return {'trang_thai': 'ok', 'file': str(sg.build_one(du_lieu, BAN, ca, goi))}
     except Exception as e:  # noqa: BLE001 — cô lập lỗi của bước hiển thị
         state = {'trang_thai': 'loi', 'loi': repr(e)[-500:],
-                 'sinh_lai': f'campaigns/g1/service_graph.py --ban {BAN} --ca {ca}'}
+                 'sinh_lai': f'campaigns/g1/service_graph.py --ban {BAN} --ca {ca} --goi {goi}'}
         try:
             p = pathlib.Path(du_lieu).parent / 'service-graph' / BAN / (ca + '.status.json')
             p.parent.mkdir(parents=True, exist_ok=True)

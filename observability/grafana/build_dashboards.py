@@ -28,9 +28,13 @@ DATA = 'http://localhost:3000/public/rca/t065-l11-001'
 V082 = 'V082-V066+H8a'
 NOTE = ('**Đồ thị dịch vụ (chỉ hiển thị).** Nút: thành phần của ca, màu và “#hạng” theo xếp hạng của **bản đang chọn** '
         '(đỏ: tự sinh — nghi nguồn; cam: kế thừa — bị kéo theo; xám: bình thường). '
-        '**Cạnh là quan sát trace trong cửa sổ ca, không phải đầu ra phương pháp.** Cạnh dịch vụ → dịch vụ ghi số quan hệ '
-        'span cha–con ở cửa sổ nền và sự cố. Cạnh tới hạ tầng (DB, cache) chỉ báo có quan sát, không đếm, và chỉ vẽ khi '
-        'đích ánh xạ được; ca thiếu thông tin `db.system` sẽ ít cạnh hạ tầng hơn. Bấm nút để mở lớp thao tác của service.')
+        '**Cạnh là quan sát trace gốc trong cửa sổ ca, không phải đầu ra phương pháp.** Nhãn cạnh: số ở cửa sổ nền / '
+        'sự cố; dòng dưới: số span lỗi (status ERROR) nền/sự cố và p95 thời lượng (ms). '
+        'Dịch vụ → dịch vụ: quan hệ span cha–con khác service (đếm span con). Dịch vụ → DB/cache: **span DB phía client** '
+        '(không gọi là request); đích là DB theo `db.name`, gộp về instance khi `db.name` không là thực thể của ca '
+        '(vd. MongoDB `user_db`). RabbitMQ: span PRODUCER dịch vụ → broker (exchange, routing key), span CONSUMER '
+        'broker → dịch vụ (queue); ca không có span RabbitMQ ghi ở tiêu đề nút broker. Bảng dưới đồ thị liệt kê đủ số; '
+        'bấm nút dịch vụ để mở lớp thao tác.')
 
 
 def git_json(path):
@@ -54,21 +58,36 @@ def incidents(base):
     d = copy.deepcopy(base)
     d.update(id=None, version=1, title='RCA — sự cố (V082, V071, P7)',
              tags=['RCA', 'T-068', 'su-co'], editable=False)
-    shift = 23
+    shift = 36  # 41 (h4) + 40 (h22) + 42/43 (h10)
     for p in walk(d['panels']):
         if p['gridPos']['y'] >= 45:
             p['gridPos']['y'] += shift
     graph_url = f'{DATA}/service-graph/${{ban}}/${{ca}}.json'
     node_cols = [('id', 'string'), ('title', 'string'), ('mainstat', 'string'), ('secondarystat', 'string'),
-                 ('color', 'string'), ('detail__lop', 'string'), ('detail__hang', 'number'), ('detail__url', 'string')]
+                 ('color', 'string'), ('detail__lop', 'string'), ('detail__hang', 'number'),
+                 ('detail__span_N', 'number'), ('detail__span_A', 'number'), ('detail__loi_N', 'number'),
+                 ('detail__loi_A', 'number'), ('detail__url', 'string')]
     edge_cols = [('id', 'string'), ('source', 'string'), ('target', 'string'), ('mainstat', 'string'),
-                 ('detail__loai', 'string'), ('detail__so_N', 'number'), ('detail__so_A', 'number'),
+                 ('secondarystat', 'string'), ('detail__loai', 'string'), ('detail__don_vi', 'string'),
+                 ('detail__so_N', 'number'), ('detail__so_A', 'number'), ('detail__loi_N', 'number'),
+                 ('detail__loi_A', 'number'), ('detail__p50_N_ms', 'number'), ('detail__p50_A_ms', 'number'),
+                 ('detail__p95_N_ms', 'number'), ('detail__p95_A_ms', 'number'), ('detail__chi_tiet', 'string'),
                  ('detail__can_cu', 'string')]
+    table_cols = [('source', 'string'), ('target', 'string'), ('detail__loai', 'string'), ('detail__don_vi', 'string'), ('detail__so_N', 'number'),
+                  ('detail__so_A', 'number'), ('detail__loi_N', 'number'), ('detail__loi_A', 'number'),
+                  ('detail__p50_N_ms', 'number'), ('detail__p50_A_ms', 'number'), ('detail__p95_N_ms', 'number'),
+                  ('detail__p95_A_ms', 'number'), ('detail__chi_tiet', 'string')]
+    table_names = {'source': 'Nguồn', 'target': 'Đích', 'detail__don_vi': 'Đơn vị', 'detail__so_N': 'Nền',
+                   'detail__so_A': 'Sự cố', 'detail__loi_N': 'Lỗi nền', 'detail__loi_A': 'Lỗi sự cố',
+                   'detail__p50_N_ms': 'p50 nền (ms)', 'detail__p50_A_ms': 'p50 sự cố (ms)',
+                   'detail__p95_N_ms': 'p95 nền (ms)', 'detail__p95_A_ms': 'p95 sự cố (ms)',
+                   'detail__chi_tiet': 'Chi tiết (DB, exchange/routing key, queue)'}
+    note_cols = [('muc', 'string'), ('so', 'number'), ('chi_tiet', 'string')]
     d['panels'] += [
-        {'id': 41, 'type': 'text', 'title': 'Chú giải đồ thị dịch vụ', 'gridPos': {'x': 0, 'y': 45, 'w': 24, 'h': 3},
+        {'id': 41, 'type': 'text', 'title': 'Chú giải đồ thị dịch vụ', 'gridPos': {'x': 0, 'y': 45, 'w': 24, 'h': 4},
          'options': {'mode': 'markdown', 'content': NOTE}},
         {'id': 40, 'type': 'nodeGraph', 'title': 'Đồ thị dịch vụ — ca ${ca} — bản ${ban}',
-         'description': NOTE.replace('**', ''), 'gridPos': {'x': 0, 'y': 48, 'w': 24, 'h': 20}, 'datasource': INF,
+         'description': NOTE.replace('**', ''), 'gridPos': {'x': 0, 'y': 49, 'w': 24, 'h': 22}, 'datasource': INF,
          'targets': [infinity('nodes', graph_url, 'nut', node_cols), infinity('edges', graph_url, 'canh', edge_cols)],
          # T-068 R1: link chỉ gắn vào trường detail__url của nút (file đồ thị dựng sẵn đường dẫn đúng bản, ca,
          # cửa sổ); khung cạnh không có trường này nên cạnh không có link; nút chú thích mở bảng trạng thái.
@@ -77,6 +96,22 @@ def incidents(base):
              {'title': 'Mở chi tiết (lớp thao tác, hoặc bảng trạng thái nếu không có đầu ra)',
               'url': '${__data.fields.detail__url}'}]}]}]},
          'options': {'nodes': {}, 'edges': {}}},
+        {'id': 42, 'type': 'table', 'title': 'Số liệu cạnh đồ thị dịch vụ — quan sát trace, không phải đầu ra phương pháp',
+         'gridPos': {'x': 0, 'y': 71, 'w': 17, 'h': 10}, 'datasource': INF,
+         'targets': [infinity('canh', graph_url, 'canh', table_cols)],
+         'fieldConfig': {'defaults': {'noValue': '—'}, 'overrides': []},
+         'transformations': [{'id': 'filterByValue', 'options': {'type': 'exclude', 'match': 'any', 'filters': [
+             {'fieldName': 'detail__loai', 'config': {'id': 'equal', 'options': {'value': 'chu_thich'}}}]}},
+                             {'id': 'organize', 'options': {'excludeByName': {'detail__loai': True},
+                                                            'renameByName': table_names}}],
+         'options': {'showHeader': True, 'cellHeight': 'sm', 'footer': {'show': False}}},
+        {'id': 43, 'type': 'table', 'title': 'Ghi chú đồ thị — phần không vẽ, gộp, thiếu RabbitMQ',
+         'gridPos': {'x': 17, 'y': 71, 'w': 7, 'h': 10}, 'datasource': INF,
+         'targets': [infinity('ghi_chu', graph_url, 'ghi_chu', note_cols)],
+         'fieldConfig': {'defaults': {'noValue': '—'}, 'overrides': []},
+         'transformations': [{'id': 'organize', 'options': {'renameByName': {'muc': 'Mục', 'so': 'Số span',
+                                                                              'chi_tiet': 'Chi tiết'}}}],
+         'options': {'showHeader': True, 'cellHeight': 'sm', 'footer': {'show': False}}},
     ]
     d['panels'].sort(key=lambda p: (p['gridPos']['y'], p['gridPos']['x']))
     return d
