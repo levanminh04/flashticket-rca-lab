@@ -103,13 +103,15 @@ def incidents(base):
          'transformations': [{'id': 'filterByValue', 'options': {'type': 'exclude', 'match': 'any', 'filters': [
              {'fieldName': 'detail__loai', 'config': {'id': 'equal', 'options': {'value': 'chu_thich'}}}]}},
                              {'id': 'organize', 'options': {'excludeByName': {'detail__loai': True},
+                                                            'indexByName': {c: i for i, (c, _) in enumerate(table_cols)},
                                                             'renameByName': table_names}}],
          'options': {'showHeader': True, 'cellHeight': 'sm', 'footer': {'show': False}}},
         {'id': 43, 'type': 'table', 'title': 'Ghi chú đồ thị — phần không vẽ, gộp, thiếu RabbitMQ',
          'gridPos': {'x': 17, 'y': 71, 'w': 7, 'h': 10}, 'datasource': INF,
          'targets': [infinity('ghi_chu', graph_url, 'ghi_chu', note_cols)],
          'fieldConfig': {'defaults': {'noValue': '—'}, 'overrides': []},
-         'transformations': [{'id': 'organize', 'options': {'renameByName': {'muc': 'Mục', 'so': 'Số span',
+         'transformations': [{'id': 'organize', 'options': {'indexByName': {'muc': 0, 'so': 1, 'chi_tiet': 2},
+                                                             'renameByName': {'muc': 'Mục', 'so': 'Số span',
                                                                               'chi_tiet': 'Chi tiết'}}}],
          'options': {'showHeader': True, 'cellHeight': 'sm', 'footer': {'show': False}}},
     ]

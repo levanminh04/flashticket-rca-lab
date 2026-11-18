@@ -1059,6 +1059,21 @@
       "excludeByName": {
        "detail__loai": true
       },
+      "indexByName": {
+       "source": 0,
+       "target": 1,
+       "detail__loai": 2,
+       "detail__don_vi": 3,
+       "detail__so_N": 4,
+       "detail__so_A": 5,
+       "detail__loi_N": 6,
+       "detail__loi_A": 7,
+       "detail__p50_N_ms": 8,
+       "detail__p50_A_ms": 9,
+       "detail__p95_N_ms": 10,
+       "detail__p95_A_ms": 11,
+       "detail__chi_tiet": 12
+      },
       "renameByName": {
        "source": "Nguồn",
        "target": "Đích",
@@ -1144,6 +1159,11 @@
     {
      "id": "organize",
      "options": {
+      "indexByName": {
+       "muc": 0,
+       "so": 1,
+       "chi_tiet": 2
+      },
       "renameByName": {
        "muc": "Mục",
        "so": "Số span",
