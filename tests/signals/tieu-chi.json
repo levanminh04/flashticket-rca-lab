@@ -1,0 +1,136 @@
+{
+ "mo_ta": "Ngưỡng và tiêu chí của T-067 bước 7 (kiểm tín hiệu) và bước 8 (tải 1 giờ). Khai trước khi chạy, commit trước khi xem kết quả. Đổi sau khi xem phải ghi là sửa sau.",
+ "buoc_7": {
+  "cua_so": "lượt mua vé 10 phút (load/profiles/purchase-journey.json, mức x1 = 12 hành trình/10 s, hỗn hợp 70/20/5/5) cộng bước GET /api/v1/me bằng tài khoản thử",
+  "span_server_http_route": {
+   "service": [
+    "api-gateway",
+    "booking-service",
+    "event-service",
+    "payment-service"
+   ],
+   "dieu_kien": ">= 1 span kind=server có http.route mỗi service trong cửa sổ"
+  },
+  "span_client_gateway": {
+   "dich": [
+    "booking-service",
+    "event-service",
+    "payment-service"
+   ],
+   "dieu_kien": ">= 1 span kind=client của api-gateway có span con kind=server thuộc service đích"
+  },
+  "span_db": {
+   "db": [
+    "event_db",
+    "booking_db",
+    "payment_db",
+    "ticket_db"
+   ],
+   "dieu_kien": ">= 1 span kind=client có db.namespace (hoặc db.name) = DB"
+  },
+  "user_mongo": {
+   "dieu_kien": "trace của GET /api/v1/me có span server của user-service và span client db.system=mongodb trong cùng trace"
+  },
+  "redis": {
+   "service": [
+    "booking-service",
+    "api-gateway"
+   ],
+   "dieu_kien": ">= 1 span client db.system=redis mỗi service"
+  },
+  "rabbitmq": {
+   "file": "tests/signals/cap-rabbitmq.json",
+   "dieu_kien": "mỗi cặp có >= 1 cặp span PRODUCER/CONSUMER nối đúng (parentSpanId = spanId) trong trace của đơn COMPLETED được chọn"
+  },
+  "luong_chinh": {
+   "dieu_kien": "chọn một đơn COMPLETED trong cửa sổ: booking_db có đúng 1 dòng vé (ticket_db) cho đơn; log có correlationId = orderId ở booking-service, payment-service, ticket-service"
+  },
+  "log": {
+   "truong_bat_buoc_B16": [
+    "schemaVersion",
+    "timestamp",
+    "severity",
+    "serviceName",
+    "serviceVersion",
+    "instanceId",
+    "environment",
+    "hostId",
+    "eventName",
+    "operation",
+    "outcome",
+    "loggerName",
+    "message"
+   ],
+   "diem_bat_buoc": {
+    "api-gateway": [
+     "gateway.request.completed|gateway.request.rejected|gateway.request.failed|gateway.request.cancelled"
+    ],
+    "booking-service": [
+     "booking.reserve",
+     "booking.freeze",
+     "booking.accept-payment",
+     "booking.issuance-result",
+     "booking.message.processed"
+    ],
+    "payment-service": [
+     "payment.attempt-created",
+     "payment.callback-confirmed",
+     "payment.saga-step",
+     "payment.message.processed",
+     "payment.outbox.result"
+    ],
+    "ticket-service": [
+     "ticket.issuance",
+     "ticket.message.processed",
+     "ticket.outbox.result"
+    ]
+   },
+   "mau_so": "mọi dòng log JSON của service trong cửa sổ có eventName thuộc điểm bắt buộc, kể cả dòng thiếu traceId/spanId",
+   "tu_so": "dòng có cặp (traceId, spanId) khớp đúng một span trong Tempo, span thuộc cùng service",
+   "nguong": 0.95,
+   "khong_co_dong": "điểm bắt buộc không có dòng nào: ghi chưa đủ bằng chứng",
+   "truong_b16": "tỷ lệ dòng ở điểm bắt buộc có đủ 13 trường bắt buộc; báo số, ngưỡng 1.0",
+   "ghi_chu_diem": "Một mục \"a|b|c\" là một điểm ghi log có nhiều kết cục; điểm có dòng khi có ít nhất một kết cục. Sửa 18/11 sau lần chạy thử trên dữ liệu bản 3 (17/11), trước khi có dữ liệu bản ghim."
+  },
+  "metric": {
+   "ten": {
+    "jvm": "jvm_memory_used_bytes",
+    "http_server": "http_server_request_duration_seconds_count",
+    "pool_db": "db_client_connections_usage",
+    "queue_rabbitmq": "rabbitmq_message_current",
+    "docker_stats": "container_cpu_usage_nanoseconds_total (nhãn container)",
+    "httpcheck": "httpcheck_status"
+   },
+   "dieu_kien": "mỗi metric có mẫu trong cửa sổ; jvm, http_server có mẫu cho 7 service; docker_stats có mẫu cho 7 container service"
+  }
+ },
+ "buoc_8": {
+  "muc_tai": "x1 như tải chuẩn T-063: 12 hành trình/10 s, hỗn hợp 70/20/5/5, 3600 s",
+  "can_cu_L1": "14 lượt x1 30 phút của T-063 (results/T-063/thu2/tai-out/t2-*, t3-*) không có hành trình hỏng ngoài khoảng tiêm lỗi; p95 http_req_duration{expected_response:true} 296-671 ms",
+  "tieu_chi_giao_dich": {
+   "journey_failed_ty_le_toi_da": 0.005,
+   "journey_finished_tren_started_toi_thieu": 0.99,
+   "dropped_iterations_toi_da": 0,
+   "p95_http_req_duration_expected_ms_toi_da": 1000,
+   "don_COMPLETED_dung_1_ve": "mọi đơn COMPLETED tạo trong lượt có đúng số vé = số lượng đặt (1)"
+  },
+  "container": {
+   "oom_toi_da": 0,
+   "restart_toi_da": 0,
+   "pham_vi": "14 container trên exp-app"
+  },
+  "collector": {
+   "may": [
+    "agent exp-app",
+    "gateway exp-obs"
+   ],
+   "bo_dem": [
+    "otelcol_exporter_send_failed_*",
+    "otelcol_receiver_refused_*",
+    "otelcol_exporter_enqueue_failed_*",
+    "otelcol_processor_dropped_*"
+   ],
+   "dieu_kien": "tăng trong lượt = 0; metric không xuất hiện được coi là 0 chỉ khi Collector chạy liên tục và không restart; mất mẫu hoặc bộ đếm reset thì ghi chưa xác định"
+  }
+ }
+}

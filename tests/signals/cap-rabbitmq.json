@@ -1,0 +1,58 @@
+{
+ "mo_ta": "Cặp phát -> nhận RabbitMQ phải thấy trên một đơn mua vé thành công (T-067 bước 7). Khai trước khi chạy. Nguồn: deploy/rabbitmq/definitions.json (exchange business.ex, binding theo routing key) và code phát/nhận ở commit FlashTicket 36a3725. Kiểm: có span PRODUCER của service phát với messaging.rabbitmq.destination.routing_key = routing_key, và span CONSUMER của service nhận có rabbitmq.queue (hoặc messaging.destination.name) = queue, với parentSpanId của CONSUMER = spanId của PRODUCER, cùng traceId.",
+ "commit_flashticket": "36a3725d9b201e868f9e2e18d1c07180a12502df",
+ "cap": [
+  {
+   "id": "P1",
+   "phat": "payment-service",
+   "routing_key": "booking.accept-payment.v1",
+   "queue": "booking.accept-payment.q",
+   "nhan": "booking-service",
+   "nguon_code": "PaymentSagaServiceImpl (phát); AcceptPaymentListener (nhận)"
+  },
+  {
+   "id": "P2",
+   "phat": "booking-service",
+   "routing_key": "booking.payment-decision.v1",
+   "queue": "payment.decision.q",
+   "nhan": "payment-service",
+   "nguon_code": "OrderServiceImpl + BookingOutboxWorker (phát); PaymentMessageListener.onPaymentDecision (nhận)"
+  },
+  {
+   "id": "P3",
+   "phat": "payment-service",
+   "routing_key": "ticket.issue.v1",
+   "queue": "ticket.issuance.q",
+   "nhan": "ticket-service",
+   "nguon_code": "PaymentSagaServiceImpl (phát); TicketBusinessListeners (nhận)"
+  },
+  {
+   "id": "P4",
+   "phat": "ticket-service",
+   "routing_key": "ticket.issuance-result.v1",
+   "queue": "payment.ticket-issuance-failed.q",
+   "nhan": "payment-service",
+   "nguon_code": "TicketSagaMessages (khóa mặc định ticket.issuance-result.v1, cả khi thành công); PaymentMessageListener.onIssuanceResult (nhận)"
+  },
+  {
+   "id": "P5",
+   "phat": "payment-service",
+   "routing_key": "ticket.issued.v1",
+   "queue": "booking.tickets-issued.q",
+   "nhan": "booking-service",
+   "nguon_code": "PaymentSagaServiceImpl (phát khi phát vé thành công); BookingIssuanceResultListener.handleTicketsIssued (nhận)"
+  },
+  {
+   "id": "P6",
+   "phat": "booking-service",
+   "routing_key": "booking.order-completed.v1",
+   "queue": "payment.order-completed.q",
+   "nhan": "payment-service",
+   "nguon_code": "OrderServiceImpl + BookingOutboxWorker (phát); PaymentMessageListener.onOrderCompleted (nhận)"
+  }
+ ],
+ "khong_kiem_trong_luot_nay": [
+  "booking.issuance-failed.v1 và các khóa event.* (cấu hình sự kiện, hủy sự kiện), identity.user-created.v1: không nằm trên luồng mua vé thành công; ghi là chưa kiểm",
+  "Biến môi trường có thể đổi routing key (ticket.messaging.*-routing-key); không đọc file env (bí mật). Khóa thực tế xem trên span PRODUCER"
+ ]
+}
