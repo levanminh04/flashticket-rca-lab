@@ -1,0 +1,18 @@
+# File phủ của lab lên deploy/app/booking-service.yml của nhóm (T-067). Dựng cấu hình hiệu lực bằng
+#   docker compose -f <worktree>/deploy/app/booking-service.yml -f booking-service.yml config
+# Giữ đúng điều kiện chạy của bản T-062 (compose-t062): env đã bỏ -javaagent, bật agent trong image,
+# giới hạn tài nguyên và thư mục tiêm lỗi như cũ; nhãn log Docker để Collector gắn tên service.
+services:
+  booking-service:
+    env_file: !override
+      - ${RCA_APP_ENV_DIR:?RCA_APP_ENV_DIR}/booking-service.env
+    environment:
+      SERVICE_VERSION: ${SERVICE_VERSION:?SERVICE_VERSION}
+    mem_limit: 1g
+    cpus: 1.0
+    volumes:
+      - ${RCA_FAULT_DIR:?RCA_FAULT_DIR}/booking-service/control:/run/fault-control:ro
+      - ${RCA_FAULT_DIR:?RCA_FAULT_DIR}/booking-service/audit:/run/fault-audit:rw
+    logging:
+      options:
+        labels: "com.docker.compose.service,com.docker.compose.container-number"

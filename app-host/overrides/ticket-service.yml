@@ -1,0 +1,21 @@
+# File phủ của lab lên deploy/app/ticket-service.yml của nhóm (T-067). Dựng cấu hình hiệu lực bằng
+#   docker compose -f <worktree>/deploy/app/ticket-service.yml -f ticket-service.yml config
+# Giữ đúng điều kiện chạy của bản T-062 (compose-t062): env đã bỏ -javaagent, bật agent trong image,
+# giới hạn tài nguyên và thư mục tiêm lỗi như cũ; nhãn log Docker để Collector gắn tên service.
+services:
+  ticket-service:
+    env_file: !override
+      - ${RCA_APP_ENV_DIR:?RCA_APP_ENV_DIR}/ticket-service.env
+    environment:
+      SERVICE_VERSION: ${SERVICE_VERSION:?SERVICE_VERSION}
+    # Khóa QR của Ticket nằm ngoài repo, như bản đang chạy (file nhóm trỏ ../secrets tương đối).
+    volumes: !override
+      - type: bind
+        source: ${RCA_APP_SECRETS_DIR:?RCA_APP_SECRETS_DIR}/ticket-qr
+        target: /run/ticket-qr
+        read_only: true
+        bind:
+          create_host_path: false
+    logging:
+      options:
+        labels: "com.docker.compose.service,com.docker.compose.container-number"

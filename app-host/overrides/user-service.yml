@@ -1,0 +1,13 @@
+# File phủ của lab lên deploy/app/user-service.yml của nhóm (T-067). Dựng cấu hình hiệu lực bằng
+#   docker compose -f <worktree>/deploy/app/user-service.yml -f user-service.yml config
+# Giữ đúng điều kiện chạy của bản T-062 (compose-t062): env đã bỏ -javaagent, bật agent trong image,
+# giới hạn tài nguyên và thư mục tiêm lỗi như cũ; nhãn log Docker để Collector gắn tên service.
+services:
+  user-service:
+    env_file: !override
+      - ${RCA_APP_ENV_DIR:?RCA_APP_ENV_DIR}/user-service.env
+    environment:
+      SERVICE_VERSION: ${SERVICE_VERSION:?SERVICE_VERSION}
+    logging:
+      options:
+        labels: "com.docker.compose.service,com.docker.compose.container-number"
