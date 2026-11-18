@@ -59,7 +59,8 @@ if [ "$PHASE" = build ] || [ "$PHASE" = all ]; then
     drc=$?
     idarch=$(docker image inspect "$img" --format '{{.Id}} {{.Architecture}}' 2>/dev/null || echo "none none")
     jar=$(ls "$T/$p"/target/$s-*.jar 2>/dev/null | grep -v -- '-plain.jar' | head -1)
-    hook=0; [ -n "$jar" ] && hook=$(unzip -l "$jar" | grep -c RcaFaults || true)
+    # Đếm mục có tên chứa RcaFaults trong jar (BOOT-INF/classes/...). Không dùng unzip: exp-app không cài.
+    hook=0; [ -n "$jar" ] && hook=$(python3 -c 'import sys,zipfile; print(sum("RcaFaults" in n for n in zipfile.ZipFile(sys.argv[1]).namelist()))' "$jar")
     jsha=$( [ -n "$jar" ] && sha256sum "$jar" | cut -d' ' -f1 || echo none)
     en=$(date -u +%FT%TZ)
     tien_do "$s build END mvn=$mrc docker=$drc $idarch rcaFaultsClasses=$hook"
