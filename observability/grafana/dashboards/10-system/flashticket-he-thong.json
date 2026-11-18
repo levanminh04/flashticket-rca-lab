@@ -1,0 +1,207 @@
+{
+ "uid": "flashticket-he-thong",
+ "id": null,
+ "version": 1,
+ "title": "Hệ thống FlashTicket — lưu lượng, độ trễ, lỗi",
+ "tags": [
+  "FlashTicket",
+  "T-068",
+  "he-thong"
+ ],
+ "timezone": "utc",
+ "editable": false,
+ "schemaVersion": 42,
+ "refresh": "30s",
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "text",
+   "title": "Đọc trang này",
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 3
+   },
+   "options": {
+    "mode": "markdown",
+    "content": "Số đo trực tiếp của FlashTicket theo service, từ metric HTTP của ứng dụng (OpenTelemetry). Lượng gọi = request/giây; độ trễ = p90; lỗi = response 5xx/giây (0 khi không có lỗi). Bản đồ dịch vụ dựng từ metric service graph do Collector tính từ trace. Trang này không chạy RCA; kết quả RCA ở [RCA — sự cố](/d/t065-l8b-rca)."
+   }
+  },
+  {
+   "id": 2,
+   "type": "timeseries",
+   "title": "Lượng gọi — request/giây theo service",
+   "gridPos": {
+    "x": 0,
+    "y": 3,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by(service_name) (rate(http_server_request_duration_seconds_count[1m]))",
+     "legendFormat": "{{service_name}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 3,
+   "type": "timeseries",
+   "title": "Độ trễ p90 theo service",
+   "gridPos": {
+    "x": 12,
+    "y": 3,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.9, sum by(le,service_name) (rate(http_server_request_duration_seconds_bucket[1m])))",
+     "legendFormat": "{{service_name}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 4,
+   "type": "timeseries",
+   "title": "Lỗi — response 5xx/giây theo service",
+   "gridPos": {
+    "x": 0,
+    "y": 11,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by(service_name) (rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[1m])) or on(service_name) (0 * sum by(service_name) (rate(http_server_request_duration_seconds_count[1m])))",
+     "legendFormat": "{{service_name}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Bộ nhớ JVM đã dùng theo service",
+   "gridPos": {
+    "x": 12,
+    "y": 11,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by(service_name) (jvm_memory_used_bytes)",
+     "legendFormat": "{{service_name}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 6,
+   "type": "nodeGraph",
+   "title": "Bản đồ dịch vụ trực tiếp (Tempo service graph)",
+   "gridPos": {
+    "x": 0,
+    "y": 19,
+    "w": 24,
+    "h": 16
+   },
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "serviceMap"
+    }
+   ],
+   "options": {
+    "nodes": {},
+    "edges": {}
+   }
+  },
+  {
+   "id": 7,
+   "type": "logs",
+   "title": "Log ứng dụng",
+   "gridPos": {
+    "x": 0,
+    "y": 35,
+    "w": 24,
+    "h": 10
+   },
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{service_name=~\"api-gateway|booking-service|event-service|payment-service|ticket-service|user-service|keycloak|discovery-server\"}",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending"
+   }
+  }
+ ]
+}

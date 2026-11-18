@@ -25,6 +25,7 @@ import urllib.parse
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 BAN = 'V082-V066+H8a'
+NGUON_MOI = 't066'
 SRC_GOC = "pathlib.Path('/opt/flash-ticket-rca/cases') / ca"
 BS_GOC = "pathlib.Path('/opt/rca-m1ft/bo-sung-dev3') / ca / 'prometheus-bo-sung.json'"
 
@@ -163,7 +164,8 @@ def main():
             raise SystemExit('mã ca phải là mã mờ')
         out = goc / 'v082' / ca / 'method-output-1.json'
         X = nap_bo_xuat(a.ra, goc / 'cases', goc / 'bo-sung')
-        c = {'ca': ca, 'nguon': 'dev3', 'dau_ra': str(out), 'sha256': sha(out), 'loi_chay': None}
+        # Nhãn nguồn = tuyến xuất T-066 (ca đi qua bộ chuyển này), không phải đợt thu (T-068).
+        c = {'ca': ca, 'nguon': NGUON_MOI, 'dau_ra': str(out), 'sha256': sha(out), 'loi_chay': None}
     m = json.loads(out.read_text(encoding='utf-8'))
     assert sha(out) == c['sha256']
     for k in ('cau_hinh_sha256', 'ma_nguon_sha256'):
@@ -185,9 +187,35 @@ def main():
         if ca not in v['cac_ca']:
             v['cac_ca'].append(ca)
             X.write(R / 'chi-muc-ban.json', cb)
+    do_thi = do_thi_dich_vu(pathlib.Path(a.ra) / 'du-lieu', ca) if not a.kiem_lai else None
     print(json.dumps({'ca': ca, 'ban': BAN, 'verdict': m['verdict'], 'services': len(services), 'links': n_links,
                       'output_sha256': c['sha256'], 'cau_hinh_sha256': m['extra']['m1_ft']['cau_hinh_sha256'],
-                      'ma_nguon_sha256': m['extra']['m1_ft']['ma_nguon_sha256'], 'ra': str(a.ra)}, ensure_ascii=False))
+                      'ma_nguon_sha256': m['extra']['m1_ft']['ma_nguon_sha256'], 'ra': str(a.ra),
+                      'do_thi_dich_vu': do_thi}, ensure_ascii=False))
+
+
+def do_thi_dich_vu(du_lieu, ca):
+    """T-068: sinh đồ thị dịch vụ SAU khi file ca và chỉ mục đã ghi. Lỗi ở bước này không làm hỏng đầu ra M1 hay
+    file ca: ghi trạng thái lỗi vào service-graph/<bản>/<ca>.status.json và trả về, để lệnh vẫn thoát 0 và runner
+    không chạy lại M1. Sinh lại riêng: campaigns/g1/service_graph.py --ban <bản> --ca <ca>."""
+    try:
+        if os.environ.get('T068_GAY_LOI_DO_THI') == '1':  # chỉ dùng cho phép kiểm trên bản sao
+            raise RuntimeError('lỗi cố ý (T068_GAY_LOI_DO_THI)')
+        spec = importlib.util.spec_from_file_location('service_graph', REPO / 'campaigns/g1/service_graph.py')
+        sg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sg)
+        return {'trang_thai': 'ok', 'file': str(sg.build_one(du_lieu, BAN, ca))}
+    except Exception as e:  # noqa: BLE001 — cô lập lỗi của bước hiển thị
+        state = {'trang_thai': 'loi', 'loi': repr(e)[-500:],
+                 'sinh_lai': f'campaigns/g1/service_graph.py --ban {BAN} --ca {ca}'}
+        try:
+            p = pathlib.Path(du_lieu).parent / 'service-graph' / BAN / (ca + '.status.json')
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps({'ban': BAN, 'ca': ca, **state}, ensure_ascii=False) + '\n', encoding='utf-8')
+        except Exception as e2:  # noqa: BLE001
+            state['loi_ghi_trang_thai'] = repr(e2)[-300:]
+        print('CANH BAO do thi dich vu: ' + json.dumps(state, ensure_ascii=False), file=sys.stderr)
+        return state
 
 
 if __name__ == '__main__':

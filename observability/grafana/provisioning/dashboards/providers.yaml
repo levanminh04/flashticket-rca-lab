@@ -1,11 +1,40 @@
-# Nạp dashboard từ file; thư mục con thành thư mục Grafana.
+# Nạp dashboard từ file (T-068): mỗi thư mục Grafana một provider; tên hiển thị tiếng Việt đặt ở `folder`.
+# dashboards/90-archive/ KHÔNG được provider nào quét (xem observability/grafana/README.md để nạp lại khi cần, ví dụ W5).
 apiVersion: 1
 providers:
-  - name: rca-g2
+  - name: bat-dau
     type: file
+    folder: Bắt đầu tại đây
+    folderUid: rca-bat-dau
     disableDeletion: false
-    allowUiUpdates: true
+    allowUiUpdates: false
     updateIntervalSeconds: 30
     options:
-      path: /etc/grafana/dashboards
-      foldersFromFilesStructure: true
+      path: /etc/grafana/dashboards/00-start-here
+  - name: he-thong
+    type: file
+    folder: Hệ thống FlashTicket
+    folderUid: rca-he-thong
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards/10-system
+  - name: su-co
+    type: file
+    folder: RCA — sự cố
+    folderUid: rca-su-co
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards/20-incidents
+  - name: phat-lai
+    type: file
+    folder: RCA — phát lại có đáp án
+    folderUid: rca-phat-lai
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards/30-replay
