@@ -1,15 +1,32 @@
 # Dùng tải từ exp-obs
 
-Python 3.12, thư viện chuẩn. Không cài thêm gói. Chạy bằng user `ubuntu`. Mã và mọi file mới trên exp-obs nằm trong `~/rca-dieu-phoi/`. Khóa dùng tại chỗ trong `keys/`, không chép sang máy khác.
+> Cập nhật T-066 (đính chính 18/11/2026). Bản chạy hiện hành là bản git của repo lab trên exp-obs (`/opt/rca-lab`, detached HEAD: cập nhật bằng `git fetch` + `git checkout <commit>`). Thư mục `~/rca-dieu-phoi/` của bản chạy cũ **đã xóa**; các đoạn dưới đây nhắc tới nó là lịch sử.
+
+Đường dẫn hiện hành:
+
+| Thứ | Đường dẫn |
+|---|---|
+| Mã | `/opt/rca-lab/load/controller/tai_linux.py` (địa chỉ máy đọc từ `inventory/` qua `campaigns/lib/inventory.py`) |
+| Khóa bộ điều khiển | `/etc/rca-lab/controller/` (biến `RCA_LAB_CONTROLLER_KEYS`), không chép sang máy khác |
+| Trạng thái, sổ sự kiện, marker bảo trì | `/srv/rca-lab/load-controller/` (biến `RCA_LAB_LOAD_STATE`) |
+| Kết quả `receive` | `/srv/rca-lab/load-controller/tai-out/<tag>/` |
+| **STOP của bộ tải** | `/srv/rca-lab/load-controller/STOP` |
+| **STOP của runner chiến dịch** (`campaigns/runner/runner4.py`) | `/srv/rca-lab/runs/STOP` (docstring cũ của runner còn ghi `~/rca-dieu-phoi/STOP`, không còn đúng) |
+
+Phụ thuộc: Python hệ thống của exp-obs phải có PyYAML (`python3-yaml`), vì `campaigns/lib/inventory.py` dùng `import yaml`. Môi trường `venv-m1` của M1 không cần và không có gói này; không cài vào venv đã ghim.
 
 ```sh
-cd ~/rca-dieu-phoi
-python3 tai_linux.py test-duong
-python3 tai_linux.py start --tag ma-moi --seconds 1800 --buoc-tai 600 --multiplier 3
-python3 tai_linux.py get --tag ma-moi
-python3 tai_linux.py receive --tag ma-moi
-python3 tai_linux.py stop --tag ma-moi
+cd /opt/rca-lab
+python3 load/controller/tai_linux.py test-duong
+python3 load/controller/tai_linux.py start --tag ma-moi --seconds 1800 --buoc-tai 600 --multiplier 3
+python3 load/controller/tai_linux.py get --tag ma-moi
+python3 load/controller/tai_linux.py receive --tag ma-moi
+python3 load/controller/tai_linux.py stop --tag ma-moi
 ```
+
+Phần dưới giữ nguyên từ bản cũ (hành vi lệnh không đổi; đường dẫn theo bảng trên).
+
+Python 3.12, thư viện chuẩn (cộng PyYAML như trên). Chạy bằng user `ubuntu`.
 
 Mỗi lệnh in đúng một dòng JSON. `ok=false` đi với exit khác 0. `get` trả trạng thái Docker tại `result.state`; chờ `Running=false`, xem `ExitCode` và `OOMKilled`. `ok=true` của `receive` xác nhận việc chép và kiểm hash; vẫn phải xem kết quả workload và trạng thái container.
 
