@@ -768,6 +768,11 @@
        "selector": "detail__hang",
        "text": "detail__hang",
        "type": "number"
+      },
+      {
+       "selector": "detail__url",
+       "text": "detail__url",
+       "type": "string"
       }
      ]
     },
@@ -837,15 +842,15 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "id"
+       "options": "detail__url"
       },
       "properties": [
        {
         "id": "links",
         "value": [
          {
-          "title": "Mở lớp thao tác của service",
-          "url": "/d/t065-l8b-rca?var-ban=${ban:percentencode}&var-ca=${ca}&var-dv=${__data.fields.id}&var-op=&from=${t_tu}&to=${t_den}"
+          "title": "Mở chi tiết (lớp thao tác, hoặc bảng trạng thái nếu không có đầu ra)",
+          "url": "${__data.fields.detail__url}"
          }
         ]
        }

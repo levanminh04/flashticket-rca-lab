@@ -27,8 +27,11 @@ import os
 import pathlib
 import re
 import sys
+import urllib.parse
 
-VERSION = 'service-graph-2'  # 2: ca không có đầu ra vẽ bằng nút chú thích; nhãn phụ rút gọn
+VERSION = 'service-graph-3'  # 2: ca không có đầu ra vẽ bằng nút chú thích; nhãn phụ rút gọn
+# 3: link riêng theo nút (detail__url), cạnh không link; đích hạ tầng phải thuộc classes của ca (T-068 R1, R5)
+DASH = '/d/t065-l8b-rca'
 DEFAULT_DU_LIEU = '/srv/rca-lab/rca-results/t065-l11-001/du-lieu'
 BY_DB_SYSTEM = {'postgresql': 'postgresql-shared-instance', 'redis': 'cache', 'mongodb': 'mongodb-instance'}
 BY_HOST = {'postgres': 'postgresql-shared-instance', 'user-db': 'mongodb-instance', 'redis': 'cache',
@@ -56,7 +59,15 @@ def map_target(addr, kind):
     return None, None
 
 
+def link(ban, ca, w, dv='', panel=None):
+    """Đường mở trang sự cố đúng bản, ca, cửa sổ; panel=3 là bảng 'Bản, hash, trạng thái'."""
+    q = urllib.parse.urlencode({'var-ban': ban, 'var-ca': ca, 'var-dv': dv, 'var-op': '',
+                                'from': w[0], 'to': w[1] - 1})
+    return f'{DASH}?{q}' + (f'&viewPanel=panel-{panel}' if panel else '')
+
+
 def build(case, ban, ca, src_sha):
+    w = case.get('cua_so_ms')
     run_state = case.get('trang_thai_chay')
     rows = case.get('ranking_rows') or []
     base = {'phien_ban': VERSION, 'ban': ban, 'ca': ca, 'cua_so_ms': case.get('cua_so_ms'),
@@ -64,7 +75,7 @@ def build(case, ban, ca, src_sha):
     if run_state != 'OK' or not rows:
         # Grafana's node graph refuses an empty edges frame, so the "no output" message is drawn as two annotation
         # nodes joined by one annotation edge (detail__loai = 'chu_thich'); none of it is case data.
-        note = {'detail__lop': '', 'detail__hang': None, 'color': '#8E8E8E'}
+        note = {'detail__lop': '', 'detail__hang': None, 'color': '#8E8E8E', 'detail__url': link(ban, ca, w, panel=3)}
         base.update(trang_thai='khong_co_dau_ra',
                     nut=[{'id': '__khong_co__', 'title': 'không có đầu ra', 'mainstat': run_state or '',
                           'secondarystat': 'bản này không xếp hạng ca này', **note},
@@ -93,6 +104,9 @@ def build(case, ban, ca, src_sha):
         a['so_canh_thao_tac'] += 1
     infra = collections.OrderedDict()
     unmapped = collections.Counter()
+    outside = collections.Counter()
+    classes = case.get('classes') or {}
+    services = {x for x in case.get('services') or [] if not x.startswith('__')}
     n_targets = 0
     for o in case['thao_tac']:
         for addr in o['dich_quan_sat']:
@@ -100,6 +114,9 @@ def build(case, ban, ca, src_sha):
             ent, why = map_target(addr, o['loai'])
             if ent is None or ent == o['chu']:
                 unmapped[addr] += ent is None
+                continue
+            if ent not in classes:  # SPEC: chỉ vẽ khi đích là thực thể của ca
+                outside[ent] += 1
                 continue
             infra.setdefault((o['chu'], ent), set()).add(why)
     entities = list(dict.fromkeys([r['entity'] for r in rows] + [o['chu'] for o in case['thao_tac']]
@@ -110,7 +127,8 @@ def build(case, ban, ca, src_sha):
         lop = r['lop'] if r else None
         nodes.append({'id': ent, 'title': ent, 'mainstat': ('#' + str(r['hang'])) if r else 'không xếp hạng',
                       'secondarystat': LABEL.get(lop, lop or ''), 'color': COLOR.get(lop, '#5794F2'),
-                      'detail__lop': lop or '', 'detail__hang': r['hang'] if r else None})
+                      'detail__lop': lop or '', 'detail__hang': r['hang'] if r else None,
+                      'detail__url': link(ban, ca, w, dv=ent) if ent in services else ''})
     edges = [{'id': f'{s}->{t}', 'source': s, 'target': t, 'mainstat': f'nền {a["so_N"]} · sự cố {a["so_A"]}',
               'detail__loai': 'span_cha_con', 'detail__so_N': a['so_N'], 'detail__so_A': a['so_A'],
               'detail__can_cu': f'{a["so_canh_thao_tac"]} cạnh thao tác'} for (s, t), a in agg.items()]
@@ -121,8 +139,8 @@ def build(case, ban, ca, src_sha):
                 dem={'canh_thao_tac': len(case['canh_thao_tac']), 'canh_cung_chu': same,
                      'canh_khong_giai_duoc_chu': unresolved, 'canh_lien_dich_vu': len(agg),
                      'canh_ha_tang': len([k for k in infra if k not in agg]), 'dich_quan_sat': n_targets,
-                     'dich_khong_anh_xa': sum(unmapped.values())},
-                khong_anh_xa=dict(sorted((k, v) for k, v in unmapped.items() if v)))
+                     'dich_khong_anh_xa': sum(unmapped.values()), 'dich_ngoai_classes': sum(outside.values())},
+                khong_anh_xa=dict(sorted((k, v) for k, v in unmapped.items() if v)), ngoai_classes=dict(sorted(outside.items())))
     return base
 
 

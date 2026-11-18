@@ -20,13 +20,13 @@ script rồi sinh lại, không sửa trên giao diện (`allowUiUpdates: false`
 
 Giữ nguyên nội dung, không provider nào quét nên không hiện trên giao diện. Thư mục vẫn nằm trong đường gắn
 `./grafana/dashboards:/etc/grafana/dashboards`, nên khi cần kiểm lại (ví dụ W5 kiểm dashboard lưu trữ khi đổi nguồn
-JSON) thì thêm tạm một provider rồi restart Grafana:
+JSON) thì thêm tạm một provider rồi restart Grafana. Không đặt `folder`/`folderUid` cùng `foldersFromFilesStructure: true`:
+Grafana 13.3.0 từ chối tổ hợp này (`pkg/services/provisioning/dashboards/file_reader.go`). Thư mục con của `90-archive`
+sẽ thành thư mục Grafana:
 
 ```yaml
   - name: luu-tru-tam
     type: file
-    folder: Lưu trữ (tạm)
-    folderUid: rca-luu-tru-tam
     options:
       path: /etc/grafana/dashboards/90-archive
       foldersFromFilesStructure: true

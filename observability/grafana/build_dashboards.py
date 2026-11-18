@@ -60,7 +60,7 @@ def incidents(base):
             p['gridPos']['y'] += shift
     graph_url = f'{DATA}/service-graph/${{ban}}/${{ca}}.json'
     node_cols = [('id', 'string'), ('title', 'string'), ('mainstat', 'string'), ('secondarystat', 'string'),
-                 ('color', 'string'), ('detail__lop', 'string'), ('detail__hang', 'number')]
+                 ('color', 'string'), ('detail__lop', 'string'), ('detail__hang', 'number'), ('detail__url', 'string')]
     edge_cols = [('id', 'string'), ('source', 'string'), ('target', 'string'), ('mainstat', 'string'),
                  ('detail__loai', 'string'), ('detail__so_N', 'number'), ('detail__so_A', 'number'),
                  ('detail__can_cu', 'string')]
@@ -70,10 +70,12 @@ def incidents(base):
         {'id': 40, 'type': 'nodeGraph', 'title': 'Đồ thị dịch vụ — ca ${ca} — bản ${ban}',
          'description': NOTE.replace('**', ''), 'gridPos': {'x': 0, 'y': 48, 'w': 24, 'h': 20}, 'datasource': INF,
          'targets': [infinity('nodes', graph_url, 'nut', node_cols), infinity('edges', graph_url, 'canh', edge_cols)],
-         'fieldConfig': {'defaults': {}, 'overrides': [{'matcher': {'id': 'byName', 'options': 'id'}, 'properties': [
-             {'id': 'links', 'value': [{'title': 'Mở lớp thao tác của service',
-                                        'url': '/d/t065-l8b-rca?var-ban=${ban:percentencode}&var-ca=${ca}'
-                                               '&var-dv=${__data.fields.id}&var-op=&from=${t_tu}&to=${t_den}'}]}]}]},
+         # T-068 R1: link chỉ gắn vào trường detail__url của nút (file đồ thị dựng sẵn đường dẫn đúng bản, ca,
+         # cửa sổ); khung cạnh không có trường này nên cạnh không có link; nút chú thích mở bảng trạng thái.
+         'fieldConfig': {'defaults': {}, 'overrides': [{'matcher': {'id': 'byName', 'options': 'detail__url'},
+                                                        'properties': [{'id': 'links', 'value': [
+             {'title': 'Mở chi tiết (lớp thao tác, hoặc bảng trạng thái nếu không có đầu ra)',
+              'url': '${__data.fields.detail__url}'}]}]}]},
          'options': {'nodes': {}, 'edges': {}}},
     ]
     d['panels'].sort(key=lambda p: (p['gridPos']['y'], p['gridPos']['x']))
