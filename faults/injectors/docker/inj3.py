@@ -60,6 +60,15 @@ def http(method, path, body=None):
         t = r.read(); return json.loads(t) if t else None
 
 
+def compose_dir():
+    """T-069: thư mục cấu hình hiệu lực của bản đang chạy (cho RECREATE-PAY). Biến môi trường trước, rồi file trạng thái
+    (bộ chạy gọi inj3 qua SSH không truyền biến môi trường). Không có thì None (hành vi cũ, compose-t062)."""
+    d = os.environ.get('RCA_APP_COMPOSE_DIR', '').strip()
+    if not d and (STATE / 'compose-dir').exists():
+        d = (STATE / 'compose-dir').read_text().strip()
+    return d or None
+
+
 def write_lease(service, action, target, value, seconds=300):
     d = A / 'rca-faults' / service / 'control'
     c = {'leaseId': str(uuid.uuid4()), 'action': action, 'value': value, 'subject': '',
@@ -110,14 +119,26 @@ def start(cell, seconds):
         sh('docker', 'pause', c['container'])
         (STATE / f'{cell}.pause-deadline').write_text(str(time.time() + seconds))
     elif c['kind'] == 'recreate':
-        # tạo lại đúng một lần với image đang chạy, compose/env -t062 không đổi (cùng cách deploy-t062.sh); không tự hoàn tác
+        # tạo lại đúng một lần với image đang chạy; không tự hoàn tác.
+        # T-069: có thư mục cấu hình hiệu lực (biến RCA_APP_COMPOSE_DIR, hoặc file STATE/compose-dir) thì dùng file
+        # <dir>/payment-service.yml (đã có image, SERVICE_VERSION; như deploy.sh trien-khai, không cần IMAGE) và kiểm
+        # container mới tạo từ đúng file đó. Không có → hành vi cũ: compose/env -t062 (cùng cách deploy-t062.sh).
         cu = sh('docker', 'inspect', c['container'], '--format', '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}').split()
-        r = subprocess.run(['docker', 'compose', '-p', c['project'], '-f', c['compose'], 'up', '-d', '--force-recreate', '--no-deps'],
-                           cwd=str(A / 'compose-t062'), env={**os.environ, 'IMAGE': cu[1]}, capture_output=True, text=True, timeout=180)
+        d = compose_dir()
+        if d:
+            f = str(pathlib.Path(d) / c['compose'])
+            r = subprocess.run(['docker', 'compose', '-p', c['project'], '-f', f, 'up', '-d', '--force-recreate', '--no-deps'],
+                               cwd=d, capture_output=True, text=True, timeout=180)
+        else:
+            r = subprocess.run(['docker', 'compose', '-p', c['project'], '-f', c['compose'], 'up', '-d', '--force-recreate', '--no-deps'],
+                               cwd=str(A / 'compose-t062'), env={**os.environ, 'IMAGE': cu[1]}, capture_output=True, text=True, timeout=180)
         moi = sh('docker', 'inspect', c['container'], '--format', '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}').split()
+        cfg = sh('docker', 'inspect', c['container'], '--format',
+                 '{{index .Config.Labels "com.docker.compose.project.config_files"}}', check=False).strip()
         out(op='recreate', cell=cell, rc=r.returncode, cu_id=cu[0], cu_started=cu[2], moi_id=moi[0], moi_started=moi[2], image=moi[1],
-            stderr_tail=r.stderr[-200:])
+            compose_dir=d or str(A / 'compose-t062'), config_files=cfg, stderr_tail=r.stderr[-200:])
         if r.returncode != 0 or moi[0] == cu[0] or moi[1] != cu[1]: raise RuntimeError('recreate không đúng: rc/Id/image')
+        if d and cfg != f: raise RuntimeError('recreate không đúng: config_files ' + cfg)
     if c['kind'] in ('toxic', 'pause'):
         # Tự gỡ đúng hạn trên exp-app, độc lập laptop (mất mạng laptop 13/11 04:19–05:00Z): tiến trình tách phiên,
         # ngủ tới hạn + 5 s rồi gọi stop (idempotent). Hook có lease tự hết; CPU có `timeout`.
