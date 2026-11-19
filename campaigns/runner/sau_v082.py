@@ -197,18 +197,27 @@ def main():
 def do_thi_dich_vu(du_lieu, ca, goi):
     """T-068: sinh đồ thị dịch vụ SAU khi file ca và chỉ mục đã ghi. Lỗi ở bước này không làm hỏng đầu ra M1 hay
     file ca: ghi trạng thái lỗi vào service-graph/<bản>/<ca>.status.json và trả về, để lệnh vẫn thoát 0 và runner
-    không chạy lại M1. Nguồn đồ thị (service-graph-4): trace gốc của ca trong gói `goi` (<goc>/cases/<ca>/, hash
-    theo manifest.json của gói). Sinh lại riêng: campaigns/g1/service_graph.py --ban <bản> --ca <ca> --goi <gói>."""
+    không chạy lại M1. Khi lỗi, <ca>.json (nếu có từ lần trước) bị ghi đè bằng đồ thị chú thích "lỗi dựng đồ thị", để
+    giao diện không hiện đồ thị cũ cho nguồn mới. Nguồn đồ thị (service-graph-5): trace gốc của ca trong gói `goi`
+    (<goc>/cases/<ca>/, hash theo manifest.json của gói). Sinh lại riêng:
+    campaigns/g1/service_graph.py --ban <bản> --ca <ca> --goi <gói>."""
+    sg = None
     try:
-        if os.environ.get('T068_GAY_LOI_DO_THI') == '1':  # chỉ dùng cho phép kiểm trên bản sao
-            raise RuntimeError('lỗi cố ý (T068_GAY_LOI_DO_THI)')
         spec = importlib.util.spec_from_file_location('service_graph', REPO / 'campaigns/g1/service_graph.py')
         sg = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sg)
+        if os.environ.get('T068_GAY_LOI_DO_THI') == '1':  # chỉ dùng cho phép kiểm trên bản sao
+            raise RuntimeError('lỗi cố ý (T068_GAY_LOI_DO_THI)')
         return {'trang_thai': 'ok', 'file': str(sg.build_one(du_lieu, BAN, ca, goi))}
     except Exception as e:  # noqa: BLE001 — cô lập lỗi của bước hiển thị
         state = {'trang_thai': 'loi', 'loi': repr(e)[-500:],
                  'sinh_lai': f'campaigns/g1/service_graph.py --ban {BAN} --ca {ca} --goi {goi}'}
+        if sg is not None and hasattr(sg, 'error_graph'):
+            try:
+                sg.error_graph(du_lieu, BAN, ca, state['loi'])
+                state['do_thi'] = 'ghi đè bằng đồ thị chú thích lỗi'
+            except Exception as e3:  # noqa: BLE001
+                state['loi_ghi_do_thi'] = repr(e3)[-300:]
         try:
             p = pathlib.Path(du_lieu).parent / 'service-graph' / BAN / (ca + '.status.json')
             p.parent.mkdir(parents=True, exist_ok=True)

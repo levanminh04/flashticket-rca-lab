@@ -14,7 +14,19 @@ Bốn JSON được sinh bằng `build_dashboards.py` từ bản gốc ở commi
 script rồi sinh lại, không sửa trên giao diện (`allowUiUpdates: false`).
 
 Đồ thị dịch vụ của trang sự cố đọc `rca-results/t065-l11-001/service-graph/<bản>/<ca>.json`, sinh bằng
-`campaigns/g1/service_graph.py` (`--tat-ca`, hoặc `--ban <bản> --ca <ca>`). `sau_v082.py` gọi bước này cho ca mới.
+`campaigns/g1/service_graph.py`. Từ `service-graph-4` nguồn là trace gốc của ca, nên lệnh cần gói trace:
+
+- một ca: `python3 -B campaigns/g1/service_graph.py --ban <bản> --ca <ca> --goi <gói> [--sha-ngoai <sha256>]`;
+  gói là thư mục ca có `manifest.json` + `raw-traces.jsonl` (ca mới: `/srv/rca-lab/m1/cases/<ca>`), hoặc `<ca>.tgz`
+  chứa `cases/<ca>/` (bắt buộc `--sha-ngoai` theo manifest ngoài);
+- mọi ca của `chi-muc-ban.json`: `python3 -B campaigns/g1/service_graph.py --tat-ca --nguon-trace <json>`, với
+  `<json>` = `{"<ca>": {"goi": ..., "sha_ngoai": ...}}`. Bản 5 kiểm mọi gói có mặt, dựng hết trong bộ nhớ rồi mới
+  ghi; lỗi ở bất kỳ ca nào thì không ghi file nào.
+
+Gói trace của các ca lịch sử: trên laptop (`results/T-062`, `results/T-063` của repo RCA) và từ 19/11 bản chép trên
+exp-obs `/srv/rca-lab/trace-goi/` (`SHA256SUMS`); `46aab4be`, `ebd5ef38` và ca mới nằm ở `/srv/rca-lab/m1/cases/`.
+Revision trước `service-graph-4` (≤ `8dccb34`) dùng `--tat-ca` không cần gói. `sau_v082.py` gọi bước này cho ca mới;
+khi lỗi, `<ca>.json` bị ghi đè bằng đồ thị chú thích "lỗi dựng đồ thị" và `<ca>.status.json` ghi lỗi.
 
 ## Sáu dashboard lưu trữ (`dashboards/90-archive/`)
 

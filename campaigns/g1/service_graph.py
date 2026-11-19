@@ -1,28 +1,31 @@
 #!/usr/bin/env python3
 """Service-level graph for one (variant, case) of the G1 display data (format 0.5, T-065 L11 index).
 
-Display only (T-068). The graph does not take part in any ranking. Version service-graph-4 (T-068 phương án A):
+Display only (T-068). The graph does not take part in any ranking. Version service-graph-5 (T-068 phương án A, sửa
+theo phản biện 19/11):
 - source: the RAW TRACE of the case (read only, hash checked against the pack manifest before use); window and
   baseline/incident split exactly as campaigns/g1/l8b-xuat.py dev3_template (start >= lo, end < hi on ns and on
   normalised us, dedup on (traceId, spanId), alias discovery-server -> config-discovery, phase A when end >= lo + 300 s);
 - nodes: entities of the case; colour and "#rank" come from `ranking_rows` of the SAME variant + case;
 - service -> service: span parent -> child with different owners; per phase: count, ERROR count (status of the child
-  span), p50/p95 duration of the child span. Cross-check: counts per (source, target, phase) must equal the sum of
-  `canh_thao_tac` of the case file grouped by operation owner; any difference stops the build (window error);
-- service -> database: spans with db.system (all CLIENT spans in the 29 cases, T-068 bước 0). Target = db.name when it
+  span), p50/p95 duration of the child span. Cross-check: counts per (source, target, phase) of ALL such pairs must
+  equal the sum of `canh_thao_tac` of the case file grouped by operation owner; any difference stops the build (window
+  error). A pair is drawn only when both owners are entities of `classes`; otherwise it is counted in "không vẽ";
+- service -> database: CLIENT spans with db.system; a db span of another kind is counted in "không vẽ", not drawn
+  (all db spans of the 29 cases are CLIENT, T-068 bước 0). Target = db.name when it
   is an entity of `classes`, else the instance of db.system (postgresql -> postgresql-shared-instance, redis -> cache,
   mongodb -> mongodb-instance), marked "gộp về instance" when db.name exists but is not an entity;
 - RabbitMQ: PRODUCER spans service -> broker (detail: exchange, routing key); CONSUMER spans broker -> service (detail:
   queue). RabbitMQ CLIENT spans (basic.ack, waitForConfirms…) have no destination and are counted, not drawn;
-- every target must be in `classes`; anything that cannot be drawn is counted in `ghi_chu` ("không vẽ");
+- every node and edge end must be in `classes`; anything that cannot be drawn is counted in `ghi_chu` ("không vẽ");
 - no logical-DB -> instance edge (not in the data).
 Percentiles: nearest rank on the sorted durations (index ceil(q*n/100) - 1, integer arithmetic), in ms.
 
 Usage (one case; trace pack = case directory with manifest.json, or a .tgz holding cases/<ca>/):
     python3 -B campaigns/g1/service_graph.py --ban V082-V066+H8a --ca 7ffb2305 --goi /srv/rca-lab/m1/cases/7ffb2305
     python3 -B campaigns/g1/service_graph.py --tat-ca --nguon-trace nguon-trace.json [--du-lieu D] [--ra-do-thi O]
-`--tat-ca` needs a trace pack for every case of chi-muc-ban.json and stops before writing anything if one is missing
-(the trace packs of the 28 historical cases are kept on the laptop, not on exp-obs).
+`--tat-ca` needs a trace pack for every case of chi-muc-ban.json: it checks that every pack exists, then builds every
+graph in memory (hash and cross-check included) and writes only when all cases succeeded; any error writes nothing.
 Output: <O>/<variant>/<case>.json and <case>.status.json; default <O> = <parent of du-lieu>/service-graph.
 """
 import argparse
@@ -36,15 +39,17 @@ import sys
 import tarfile
 import urllib.parse
 
-VERSION = 'service-graph-4'
+VERSION = 'service-graph-5'
 # 2: ca không có đầu ra vẽ bằng nút chú thích; 3: link riêng theo nút (detail__url), cạnh không link, đích thuộc classes;
 # 4: nguồn là trace gốc của ca; cạnh DB theo db.name, cạnh RabbitMQ, số lỗi và p50/p95 (T-068 phương án A, Minh 18/11)
+# 5: cạnh/nút ngoài classes và span DB không phải CLIENT không vẽ; --tat-ca ghi khi mọi ca dựng xong; link nút chú
+#    thích không đặt dv/op (T-068, Minh duyệt 19/11 sau phản biện)
 DASH = '/d/t065-l8b-rca'
 DEFAULT_DU_LIEU = '/srv/rca-lab/rca-results/t065-l11-001/du-lieu'
 ALIAS = {'discovery-server': 'config-discovery'}  # như l8b-xuat.py dev3_template
 INSTANCE = {'postgresql': 'postgresql-shared-instance', 'redis': 'cache', 'mongodb': 'mongodb-instance'}
 BROKER = 'broker'
-PRODUCER, CONSUMER = 4, 5
+CLIENT, PRODUCER, CONSUMER = 3, 4, 5
 KIND = {'SPAN_KIND_INTERNAL': 1, 'SPAN_KIND_SERVER': 2, 'SPAN_KIND_CLIENT': 3, 'SPAN_KIND_PRODUCER': 4,
         'SPAN_KIND_CONSUMER': 5}
 COLOR = {'tu_sinh': '#E02F44', 'ke_thua': '#FF9830', 'binh_thuong': '#8E8E8E'}
@@ -183,10 +188,13 @@ class _Agg:
             self.detail[detail] += 1
 
 
-def link(ban, ca, w, dv='', panel=None):
-    """Đường mở trang sự cố đúng bản, ca, cửa sổ; panel=3 là bảng 'Bản, hash, trạng thái'."""
-    q = urllib.parse.urlencode({'var-ban': ban, 'var-ca': ca, 'var-dv': dv, 'var-op': '',
-                                'from': w[0], 'to': w[1] - 1})
+def link(ban, ca, w, dv=None, panel=None):
+    """Đường mở trang sự cố đúng bản, ca, cửa sổ; panel=3 là bảng 'Bản, hash, trạng thái'. dv=None: không đặt
+    var-dv/var-op, Grafana tự chọn giá trị đầu của biến (var-dv rỗng làm truy vấn biến op báo 400)."""
+    v = {'var-ban': ban, 'var-ca': ca}
+    if dv is not None:
+        v.update({'var-dv': dv, 'var-op': ''})
+    q = urllib.parse.urlencode({**v, 'from': w[0], 'to': w[1] - 1})
     return f'{DASH}?{q}' + (f'&viewPanel=panel-{panel}' if panel else '')
 
 
@@ -200,31 +208,41 @@ def observe(case, spans):
     khong_ve = collections.Counter()
     same = grouped = 0
     has_mq = False
+    svc_all = collections.Counter()
     for key, (owner, parent, phase, kind, err, dur, a) in spans.items():
-        own[owner].add(phase, err, dur)
+        if owner in classes:
+            own[owner].add(phase, err, dur)
+        else:
+            khong_ve[f'span của {owner}: dịch vụ không là thực thể của ca'] += 1
         par = spans.get((key[0], parent)) if parent else None
         if par is not None:
             if par[0] != owner:
-                svc_edge[(par[0], owner)].add(phase, err, dur)
+                svc_all[(par[0], owner, phase)] += 1
+                if par[0] in classes and owner in classes:
+                    svc_edge[(par[0], owner)].add(phase, err, dur)
+                else:
+                    khong_ve[f'quan hệ span cha–con {par[0]} → {owner}: đầu cạnh ngoài thực thể của ca'] += 1
             else:
                 same += 1
         system = a.get('db.system') or a.get('db.system.name')
         msys = a.get('messaging.system')
         has_mq = has_mq or msys == 'rabbitmq'
-        if system:
+        if system and kind != CLIENT:
+            khong_ve[f'span DB {system} kind {kind} của {owner}: không phải span phía client'] += 1
+        elif system:
             name = a.get('db.name')
             if name and name in classes:
                 target, detail = name, f'db.system={system}; db.name={name}'
             else:
                 target = INSTANCE.get(system.lower())
                 detail = f'db.system={system}; ' + (f'gộp về instance: db.name={name}' if name else 'không có db.name')
-            if target is None or target not in classes or target == owner:
+            if target is None or target not in classes or target == owner or owner not in classes:
                 khong_ve[f'span DB {system}/{name} của {owner}: đích ngoài thực thể của ca'] += 1
                 continue
             grouped += bool(name) and name not in classes
             db_edge[(owner, target)].add(phase, err, dur, detail)
         elif msys or kind in (PRODUCER, CONSUMER):
-            if msys != 'rabbitmq' or BROKER not in classes:
+            if msys != 'rabbitmq' or BROKER not in classes or owner not in classes:
                 khong_ve[f'span messaging {msys} kind {kind} của {owner}: đích ngoài thực thể của ca'] += 1
             elif kind == PRODUCER:
                 mq_edge[(owner, BROKER, 'rabbitmq_gui')].add(
@@ -246,11 +264,7 @@ def observe(case, spans):
         else:
             want[(s, d, 'N')] += e['so_N']
             want[(s, d, 'A')] += e['so_A']
-    got = collections.Counter()
-    for (s, d), g in svc_edge.items():
-        got[(s, d, 'N')] += g.n['N']
-        got[(s, d, 'A')] += g.n['A']
-    got, want = +got, +want
+    got, want = +svc_all, +want
     if got != want or same != want_same:
         bad = sorted(k for k in set(got) | set(want) if got[k] != want[k])[:5]
         raise TraceError(f'{case.get("ca")}: số quan hệ cha–con từ trace khác canh_thao_tac {bad}; '
@@ -346,8 +360,8 @@ def write_status(du_lieu, ban, ca, state, ra=None):
     _write(out_dir(du_lieu, ra) / ban / (ca + '.status.json'), {'phien_ban': VERSION, 'ban': ban, 'ca': ca, **state})
 
 
-def build_case(du_lieu, bans, ca, goi, sha_ngoai=None, ra=None):
-    """Đọc trace một lần, dựng đồ thị cho mọi bản trong `bans`. Lỗi trace/kiểm chéo -> ngoại lệ trước khi ghi."""
+def graphs_case(du_lieu, bans, ca, goi, sha_ngoai=None):
+    """Đọc trace một lần, dựng đồ thị (trong bộ nhớ) cho mọi bản trong `bans`. Không ghi file."""
     du_lieu = pathlib.Path(du_lieu)
     loaded = {}
     for ban in bans:
@@ -362,14 +376,46 @@ def build_case(du_lieu, bans, ca, goi, sha_ngoai=None, ra=None):
         spans, proof = read_trace(goi, ca, w, sha_ngoai)
         obs = {b: observe(loaded[b][0], spans) for b in need}
         del spans
-    graphs = {b: build(c, b, ca, sha, obs.get(b), proof) for b, (c, sha) in loaded.items()}
+    return {b: build(c, b, ca, sha, obs.get(b), proof) for b, (c, sha) in loaded.items()}
+
+
+def write_graphs(du_lieu, ca, graphs, ra=None):
     out = []
-    for ban, g in graphs.items():  # chỉ ghi khi mọi bản của ca đã dựng xong
+    for ban, g in graphs.items():
         p = out_dir(du_lieu, ra) / ban / (ca + '.json')
         _write(p, g)
         write_status(du_lieu, ban, ca, {'trang_thai': 'ok', 'file': p.name}, ra)
         out.append(str(p))
     return out
+
+
+def build_case(du_lieu, bans, ca, goi, sha_ngoai=None, ra=None):
+    """Dựng mọi bản của ca rồi mới ghi. Lỗi trace/kiểm chéo -> ngoại lệ trước khi ghi."""
+    return write_graphs(du_lieu, ca, graphs_case(du_lieu, bans, ca, goi, sha_ngoai), ra)
+
+
+def error_graph(du_lieu, ban, ca, loi, ra=None):
+    """Ghi đè <ca>.json bằng đồ thị chú thích khi sinh lại lỗi, để giao diện không hiện đồ thị cũ (T-068 điểm 5).
+    Không đọc trace; cửa sổ lấy từ file ca nếu đọc được."""
+    w = None
+    try:
+        w = json.loads((pathlib.Path(du_lieu) / ban / (ca + '.json')).read_text(encoding='utf-8')).get('cua_so_ms')
+    except Exception:  # noqa: BLE001
+        pass
+    url = link(ban, ca, w, panel=3) if w else ''
+    note = {'detail__lop': '', 'detail__hang': None, 'color': '#E02F44', 'detail__url': url}
+    g = {'phien_ban': VERSION, 'ban': ban, 'ca': ca, 'cua_so_ms': w, 'trang_thai': 'loi_dung_do_thi',
+         'chu_thich': NOTE, 'loi': loi,
+         'nut': [{'id': '__loi__', 'title': 'lỗi dựng đồ thị', 'mainstat': 'xem status.json',
+                  'secondarystat': 'không phải dữ liệu của ca', **note},
+                 {'id': '__xem_bang__', 'title': 'xem bảng trạng thái', 'mainstat': '',
+                  'secondarystat': 'panel “Bản, hash, trạng thái”', **note}],
+         'canh': [{'id': '__loi__->__xem_bang__', 'source': '__loi__', 'target': '__xem_bang__',
+                   'mainstat': 'chú thích, không phải dữ liệu', 'secondarystat': '', 'detail__loai': 'chu_thich',
+                   'detail__don_vi': '', 'detail__so_N': None, 'detail__so_A': None, 'detail__chi_tiet': '',
+                   'detail__can_cu': ''}],
+         'dem': {}, 'ghi_chu': [{'muc': 'lỗi dựng đồ thị', 'so': None, 'chi_tiet': loi[-300:]}]}
+    _write(out_dir(du_lieu, ra) / ban / (ca + '.json'), g)
 
 
 def build_one(du_lieu, ban, ca, goi, sha_ngoai=None, ra=None):
@@ -408,9 +454,15 @@ def main():
     for ca, bans in by_case.items():
         if not (ca.isalnum() and all('/' not in b and '..' not in b for b in bans)):
             sys.exit(f'mã không hợp lệ: {bans}/{ca}')
+    absent = [c for c in by_case if not pathlib.Path(src[c]['goi']).exists()]
+    if absent:
+        sys.exit(f'không thấy gói trace của {len(absent)} ca: {absent}; không ghi file nào')
+    built = {}
+    for ca, bans in by_case.items():  # dựng hết trong bộ nhớ; lỗi ở bất kỳ ca nào -> thoát, chưa ghi file nào
+        built[ca] = graphs_case(du_lieu, bans, ca, src[ca]['goi'], src[ca].get('sha_ngoai'))
     done = []
-    for ca, bans in by_case.items():
-        done += build_case(du_lieu, bans, ca, src[ca]['goi'], src[ca].get('sha_ngoai'), a.ra_do_thi)
+    for ca, graphs in built.items():
+        done += write_graphs(du_lieu, ca, graphs, a.ra_do_thi)
     print(json.dumps({'phien_ban': VERSION, 'so_file': len(done)}, ensure_ascii=False))
 
 
