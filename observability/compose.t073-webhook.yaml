@@ -1,0 +1,75 @@
+# Bộ nhận webhook cảnh báo trên mạng Docker của Grafana (T-073 W5 và T-072 E3; HOP-DONG T-070 I12; Minh duyệt cách
+# nối (b) 20/11). Project Compose RIÊNG, gắn vào mạng của project quan sát (khai external) để Grafana gọi theo tên:
+#   t072-bo-nhan  (bộ nhận nhẹ của T-072, kiểm giao nhận ở E3):  http://t072-bo-nhan:9172/t072
+#   t073-webhook  (bộ nhận chế độ (b) của T-073, dùng ở E5):     http://t073-webhook:8080/t073/canh-bao
+# Vì sao project riêng, không thêm service vào compose.yaml: `up`/`down` project này không tạo lại, không khởi động lại
+# service nào của flash-ticket-obs-pinned (Prometheus, Grafana, Collector...); compose.yaml chính giữ nguyên byte.
+# Không mở cổng ra host: chỉ container trên mạng flash-ticket-obs-pinned_default gọi được (không đổi tường lửa).
+#
+# Mọi biến đặt trong MỘT file env của lượt và dùng cùng file cho mọi lệnh (up, ps, stop, down), vì Compose nội suy cả
+# file cho mọi lệnh và dừng khi thiếu biến bắt buộc. Chạy từ /opt/rca-lab/observability, chỉ ở khung có Grafana (I7):
+#   E=/srv/rca-lab/runs/t073-<lượt>/webhook.env    # chứa T073_WEBHOOK_IMAGE, T073_SPOOL_DIR, T072_RA_DIR
+#   docker compose -p t073-webhook --env-file $E -f compose.t073-webhook.yaml up -d t072-bo-nhan    (E3)
+#   docker compose -p t073-webhook --env-file $E -f compose.t073-webhook.yaml up -d t073-webhook    (E5)
+#   hoàn tác: docker compose -p t073-webhook --env-file $E -f compose.t073-webhook.yaml down   (thư mục trên host giữ nguyên)
+# Thư mục gắn vào phải có sẵn, do ubuntu tạo (create_host_path: false → thiếu thì `up` báo lỗi, không tạo bằng root).
+# Thứ tự khi dừng cả kho quan sát: down project này TRƯỚC, nếu không Docker không xóa được mạng chung.
+name: t073-webhook
+x-chung: &chung
+  # Image Python chính thức, ghim digest lúc triển khai (repo ghim image theo digest); bắt buộc đặt, không có mặc định.
+  image: ${T073_WEBHOOK_IMAGE:?đặt T073_WEBHOOK_IMAGE=python@sha256:<digest> (xem results/T-073/trien-khai-bo-nhan.md)}
+  user: ${T073_UID:-1001}:${T073_GID:-1001}  # ubuntu: chủ /srv/rca-lab/runs (700)
+  environment:
+    PYTHONDONTWRITEBYTECODE: '1'
+    PYTHONUNBUFFERED: '1'
+  read_only: true
+  mem_limit: 64m
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '3'
+services:
+  t073-webhook:
+    <<: *chung
+    container_name: flash-ticket-t073-webhook
+    command: [python, -B, /app/webhook_receiver.py, --nghe, 0.0.0.0:8080, --duong-dan, /t073/canh-bao, --spool, /spool]
+    volumes:
+    - {type: bind, source: ../campaigns/online, target: /app, read_only: true, bind: {create_host_path: false}}
+    - type: bind
+      source: ${T073_SPOOL_DIR:?đặt T073_SPOOL_DIR=/srv/rca-lab/runs/t073-<lượt>/spool}
+      target: /spool
+      bind: {create_host_path: false}
+    networks:
+      obs:
+        aliases: [t073-webhook]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/t073/canh-bao/song', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  t072-bo-nhan:
+    <<: *chung
+    container_name: flash-ticket-t072-bo-nhan
+    # File của T-072 (nhánh t072-luat, observability/t072-bo-nhan/bo_nhan.py), gắn chỉ đọc; checkout triển khai phải
+    # chứa file này (thiếu thì `up` lỗi vì create_host_path: false). Không sửa, không chép sang nhánh T-073.
+    command: [python, -B, /app/bo_nhan.py, --nghe, 0.0.0.0:9172, --ra, /ra/webhook.jsonl]
+    volumes:
+    - {type: bind, source: ./t072-bo-nhan, target: /app, read_only: true, bind: {create_host_path: false}}
+    - type: bind
+      source: ${T072_RA_DIR:?đặt T072_RA_DIR=/srv/rca-lab/runs/t072-e3-01}
+      target: /ra
+      bind: {create_host_path: false}
+    networks:
+      obs:
+        aliases: [t072-bo-nhan]
+    healthcheck:  # bo_nhan.py không có GET; kiểm cổng nghe
+      test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1', 9172), 3).close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  obs:
+    external: true
+    name: flash-ticket-obs-pinned_default
