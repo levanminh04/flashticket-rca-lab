@@ -66,15 +66,23 @@ def khoi_che_do_b(su_co, oid, m, kiem):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--id', required=True); ap.add_argument('--su-co', required=True)
-    ap.add_argument('--goc', required=True); ap.add_argument('--ra', required=True)
+    ap.add_argument('--id'); ap.add_argument('--su-co')
+    ap.add_argument('--goc'); ap.add_argument('--ra', required=True)
     ap.add_argument('--chi-muc-nguon', default=CAM_GHI + '/du-lieu/chi-muc-ban.json', help='chỉ đọc: siêu dữ liệu bản')
     ap.add_argument('--khoi-tao', default='rong', help="'rong' hoặc 'chep:<thư mục bộ cũ>' khi --ra chưa có chỉ mục")
+    ap.add_argument('--chi-khoi-tao', action='store_true',
+                    help='E5/S4: chỉ dựng bộ --ra theo --khoi-tao (trước khi đổi nguồn dashboard), không ghi ca')
     a = ap.parse_args()
     if os.geteuid() != 0:
         raise SystemExit('chạy bằng root (sudo)')
     if pathlib.Path(a.ra).resolve() == pathlib.Path(CAM_GHI).resolve() or not pathlib.Path(a.ra).name.startswith('t073-'):
         raise SystemExit('chỉ ghi vào bộ dữ liệu rca-results/t073-* (I9)')
+    if a.chi_khoi_tao:
+        kt = khoi_tao(a.ra, a.chi_muc_nguon, a.khoi_tao, nap_sau_v082().BAN)
+        print(json.dumps({'ra': a.ra, 'khoi_tao': kt}, ensure_ascii=False))
+        return
+    if not (a.id and a.su_co and a.goc):
+        raise SystemExit('cần --id, --su-co, --goc (hoặc --chi-khoi-tao)')
     ca = a.id
     if not ca.isalnum():
         raise SystemExit('mã ca phải là mã mờ')

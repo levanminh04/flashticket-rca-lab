@@ -1,0 +1,22 @@
+# T-073 (W5, E5): gửi cảnh báo của 11 luật thật (t072-luat.yaml) tới bộ nhận chế độ (b), SONG SONG với bộ nhận T-072.
+# Cách làm: thêm một integration webhook thứ hai vào CHÍNH contact point `t072-bo-nhan-nhe` (cùng `name`, `uid` riêng).
+# Grafana gửi một thông báo tới mọi integration của contact point, nên:
+#   - không sửa luật nào: truy vấn, ngưỡng, `for`, nhãn, `notification_settings` (receiver, group_by, group_wait 0s,
+#     group_interval 10s, repeat_interval 4h) giữ nguyên → không đổi cách đánh giá luật, không tạo phiên bản luật mới;
+#   - bộ nhận T-072 (`http://t072-bo-nhan:9172/t072`) vẫn nhận như cũ → bằng chứng giao nhận của T-072 giữ nguyên;
+#   - không sửa `t072-luat.yaml` (file do results/T-072/sinh_luat_grafana.py sinh, "không sửa tay").
+# Chưa kiểm: Grafana 13.3 gộp hai file provisioning cùng tên contact point thành một contact point hai integration
+# (provisioning tạo/cập nhật theo `uid` của từng receiver, nhóm theo `name`). Kiểm ở S4 trước khi tiêm
+# (results/T-073/trien-khai-e5.md bước S4-5). Không đạt → dùng phương án dự phòng ghi ở đó.
+# Hoàn tác: đổi t073-e5-go.yaml.mau → t073-e5-go.yaml, xóa file này, restart Grafana (deleteContactPoints theo uid).
+apiVersion: 1
+contactPoints:
+- orgId: 1
+  name: t072-bo-nhan-nhe
+  receivers:
+  - uid: t073-webhook-e5
+    type: webhook
+    disableResolveMessage: false
+    settings:
+      url: http://t073-webhook:8080/t073/canh-bao
+      httpMethod: POST

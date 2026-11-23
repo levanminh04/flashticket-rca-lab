@@ -41,7 +41,7 @@
       "source": "url",
       "parser": "backend",
       "format": "table",
-      "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/chi-muc-ban.json",
+      "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/chi-muc-ban.json",
       "url_options": {
        "method": "GET",
        "data": ""
@@ -93,7 +93,7 @@
       "source": "url",
       "parser": "backend",
       "format": "table",
-      "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/chi-muc.json",
+      "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/chi-muc.json",
       "url_options": {
        "method": "GET",
        "data": ""
@@ -145,7 +145,7 @@
       "source": "url",
       "parser": "backend",
       "format": "table",
-      "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/vue/${ca}.json",
+      "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/vue/${ca}.json",
       "url_options": {
        "method": "GET",
        "data": ""
@@ -197,7 +197,7 @@
       "source": "url",
       "parser": "backend",
       "format": "table",
-      "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/vue/${ca}.json",
+      "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/vue/${ca}.json",
       "url_options": {
        "method": "GET",
        "data": ""
@@ -241,7 +241,7 @@
       "source": "url",
       "parser": "backend",
       "format": "table",
-      "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/vue/${ca}.json",
+      "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/vue/${ca}.json",
       "url_options": {
        "method": "GET",
        "data": ""
@@ -285,7 +285,7 @@
       "source": "url",
       "parser": "backend",
       "format": "table",
-      "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/vue/${ca}.json",
+      "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/vue/${ca}.json",
       "url_options": {
        "method": "GET",
        "data": ""
@@ -329,7 +329,7 @@
       "source": "url",
       "parser": "backend",
       "format": "table",
-      "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/thao-tac-vue/${ca}/${dv}.json",
+      "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/thao-tac-vue/${ca}/${dv}.json",
       "url_options": {
        "method": "GET",
        "data": ""
@@ -402,7 +402,7 @@
      "source": "url",
      "parser": "backend",
      "format": "table",
-     "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/chi-muc.json",
+     "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/chi-muc.json",
      "url_options": {
       "method": "GET",
       "data": ""
@@ -504,7 +504,7 @@
      "source": "url",
      "parser": "backend",
      "format": "table",
-     "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/vue/${ca}.json",
+     "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/vue/${ca}.json",
      "url_options": {
       "method": "GET",
       "data": ""
@@ -602,7 +602,7 @@
      "source": "url",
      "parser": "backend",
      "format": "table",
-     "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/phat-lai/${ca}.json",
+     "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/phat-lai/${ca}.json",
      "url_options": {
       "method": "GET",
       "data": ""
@@ -711,7 +711,7 @@
      "source": "url",
      "parser": "backend",
      "format": "table",
-     "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/vue/${ca}.json",
+     "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/vue/${ca}.json",
      "url_options": {
       "method": "GET",
       "data": ""
@@ -771,7 +771,7 @@
      "source": "url",
      "parser": "backend",
      "format": "table",
-     "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/phat-lai/${ca}.json",
+     "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/phat-lai/${ca}.json",
      "url_options": {
       "method": "GET",
       "data": ""
@@ -865,7 +865,7 @@
      "source": "url",
      "parser": "backend",
      "format": "table",
-     "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/${ban}/phat-lai/${ca}.json",
+     "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/${ban}/phat-lai/${ca}.json",
      "url_options": {
       "method": "GET",
       "data": ""

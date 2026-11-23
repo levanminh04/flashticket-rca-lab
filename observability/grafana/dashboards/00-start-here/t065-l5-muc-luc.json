@@ -31,7 +31,7 @@
    },
    "options": {
     "mode": "markdown",
-    "content": "## Bắt đầu tại đây\n\n- **[Hệ thống FlashTicket](/d/flashticket-he-thong)** — lưu lượng, độ trễ p90, lỗi 5xx theo service; bộ nhớ JVM; bản đồ dịch vụ trực tiếp; log ứng dụng. Mặc định 1 giờ gần nhất.\n- **[RCA — sự cố](/d/t065-l8b-rca)** — chọn bản (V082 đề xuất cuối, V071 thay thế có xếp hạng cạnh, P7 khóa) → ca → đồ thị dịch vụ → service → thao tác → bằng chứng. Mở ca từ bảng dưới đây để có đúng cửa sổ thời gian.\n- **[RCA — phát lại có đáp án](/d/t065-l8b-phat-lai)** — lớp đáp án tách riêng; trang sự cố và mục lục không chứa đáp án.\n\nNguồn dữ liệu RCA: chỉ mục bản 3 `t065-l11-001`. Cửa sổ ca: [t−300 s, t+300 s). Đồ thị dịch vụ chỉ để hiển thị; cạnh là quan sát trace, không phải đầu ra phương pháp. Dashboard lưu trữ của các lượt thử không còn hiện trên giao diện (repo lab, `observability/grafana/README.md`)."
+    "content": "## Bắt đầu tại đây\n\n- **[Hệ thống FlashTicket](/d/flashticket-he-thong)** — lưu lượng, độ trễ p90, lỗi 5xx theo service; bộ nhớ JVM; bản đồ dịch vụ trực tiếp; log ứng dụng. Mặc định 1 giờ gần nhất.\n- **[RCA — sự cố](/d/t065-l8b-rca)** — chọn bản (V082 đề xuất cuối, V071 thay thế có xếp hạng cạnh, P7 khóa) → ca → đồ thị dịch vụ → service → thao tác → bằng chứng. Mở ca từ bảng dưới đây để có đúng cửa sổ thời gian.\n- **[RCA — phát lại có đáp án](/d/t065-l8b-phat-lai)** — lớp đáp án tách riêng; trang sự cố và mục lục không chứa đáp án.\n\nNguồn dữ liệu RCA: chỉ mục bản 3 `t073-e5-001`. Cửa sổ ca: [t−300 s, t+300 s). Đồ thị dịch vụ chỉ để hiển thị; cạnh là quan sát trace, không phải đầu ra phương pháp. Dashboard lưu trữ của các lượt thử không còn hiện trên giao diện (repo lab, `observability/grafana/README.md`)."
    }
   },
   {
@@ -59,7 +59,7 @@
      "source": "url",
      "parser": "backend",
      "format": "table",
-     "url": "http://localhost:3000/public/rca/t065-l11-001/du-lieu/V082-V066+H8a/chi-muc.json",
+     "url": "http://localhost:3000/public/rca/t073-e5-001/du-lieu/V082-V066+H8a/chi-muc.json",
      "url_options": {
       "method": "GET",
       "data": ""

@@ -2,6 +2,11 @@
 """T-068: build the four served dashboards from the T-065 L12 base (lab commit ab1c52c) — run on the laptop.
 
     py -3 -B observability/grafana/build_dashboards.py
+    RCA_G1_BO=t073-e5-001 py -3 -B observability/grafana/build_dashboards.py   (T-073 W5/E5: đổi nguồn hiển thị)
+
+RCA_G1_BO: bộ dữ liệu G1 dưới /srv/rca-lab/rca-results/ mà dashboard đọc (mặc định t065-l11-001, I9 T-070). Khác mặc
+định thì mọi URL `public/rca/t065-l11-001` (cả phần lấy nguyên từ bản gốc ab1c52c) và tên bộ trong ghi chú trang
+"Bắt đầu" đổi sang bộ mới; script dừng nếu còn sót chuỗi t065-l11-001. Hoàn tác: sinh lại không đặt biến.
 
 Base files are read with `git show ab1c52c:<path>` so the result does not depend on the working tree.
 Outputs (served; one provider per folder, see provisioning/dashboards/providers.yaml):
@@ -15,7 +20,9 @@ UIDs of existing dashboards are kept so old links keep working.
 import copy
 import hashlib
 import json
+import os
 import pathlib
+import re
 import subprocess
 
 BASE_COMMIT = 'ab1c52c'
@@ -24,7 +31,11 @@ REPO = HERE.parents[1]
 DASH = HERE / 'dashboards'
 INF = {'type': 'yesoreyeram-infinity-datasource', 'uid': 'infinity-rca'}
 PROM = {'type': 'prometheus', 'uid': 'prometheus'}
-DATA = 'http://localhost:3000/public/rca/t065-l11-001'
+BO_MAC_DINH = 't065-l11-001'
+BO = os.environ.get('RCA_G1_BO', BO_MAC_DINH)
+if not re.fullmatch(r't0[0-9]{2}-[a-z0-9-]+', BO):
+    raise SystemExit('RCA_G1_BO phải là tên bộ dữ liệu dạng t0xx-…')
+DATA = 'http://localhost:3000/public/rca/' + BO_MAC_DINH  # đổi sang BO ở write()
 V082 = 'V082-V066+H8a'
 NOTE = ('**Đồ thị dịch vụ (chỉ hiển thị).** Nút: thành phần của ca, màu và “#hạng” theo xếp hạng của **bản đang chọn** '
         '(đỏ: tự sinh — nghi nguồn; cam: kế thừa — bị kéo theo; xám: bình thường). '
@@ -206,7 +217,12 @@ def system():
 def write(rel, obj):
     p = DASH / rel
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_bytes((json.dumps(obj, ensure_ascii=False, indent=1) + '\n').encode('utf-8'))  # LF trên mọi máy
+    txt = json.dumps(obj, ensure_ascii=False, indent=1) + '\n'
+    if BO != BO_MAC_DINH:  # T-073: đổi nguồn hiển thị sang bộ BO
+        txt = txt.replace('public/rca/' + BO_MAC_DINH, 'public/rca/' + BO).replace('`' + BO_MAC_DINH + '`', '`' + BO + '`')
+        if BO_MAC_DINH in txt:
+            raise SystemExit(f'{rel}: còn chuỗi {BO_MAC_DINH} sau khi đổi nguồn; dừng')
+    p.write_bytes(txt.encode('utf-8'))  # LF trên mọi máy
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
