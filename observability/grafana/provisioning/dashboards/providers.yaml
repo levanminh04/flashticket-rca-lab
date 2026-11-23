@@ -38,3 +38,10 @@ providers:
     updateIntervalSeconds: 30
     options:
       path: /etc/grafana/dashboards/30-replay
+  # T-073 E5 (commit P, tạm): nạp 6 dashboard lưu trữ để kiểm khi đổi nguồn JSON (W5); trả về commit E5 ngay sau kiểm.
+  # Cấu hình theo observability/grafana/README.md (không đặt folder/folderUid cùng foldersFromFilesStructure).
+  - name: luu-tru-tam
+    type: file
+    options:
+      path: /etc/grafana/dashboards/90-archive
+      foldersFromFilesStructure: true
