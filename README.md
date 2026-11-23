@@ -24,23 +24,22 @@ máy tải (k6) ──HTTP──▶ exp-app: FlashTicket (Compose) + Java agent 
 
 Chi tiết: [docs/architecture.md](docs/architecture.md).
 
-| Thư mục | Trả lời câu hỏi |
+| Thư mục | Nội dung |
 |---|---|
-| [`inventory/`](inventory/) | Chạy ở đâu: địa chỉ máy, biến môi trường. Nơi duy nhất có IP |
-| [`observability/`](observability/) | Dữ liệu đi đâu: Collector, Prometheus, Loki, Tempo, Grafana |
-| [`app-host/`](app-host/) | FlashTicket chạy thế nào trên máy thử (Compose) |
-| [`load/`](load/) | Tải gì: kịch bản k6, mức tải, bộ điều khiển tải |
-| [`faults/`](faults/) | Gây lỗi gì: Toxiproxy, bộ tiêm lỗi, mock VNPay |
-| [`campaigns/`](campaigns/) | Chạy theo lịch nào: runner và lịch đợt thu |
-| [`rca-service/`](rca-service/) | Chẩn đoán thế nào (dịch vụ RCA trực tuyến, chưa làm) |
-| [`provisioning/`](provisioning/) | Dựng một máy trống (chưa làm) |
-| [`docs/`](docs/) | Kiến trúc, nguồn gốc file |
+| [`inventory/`](inventory/) | Danh mục máy và biến cấu hình. |
+| [`observability/`](observability/) | Cấu hình thu tín hiệu và hiển thị trên Grafana. Các luật cảnh báo W4 nằm trong [t072-luat.yaml](observability/grafana/provisioning/alerting/t072-luat.yaml). |
+| [`app-host/`](app-host/) | Cấu hình Compose và công cụ dựng, triển khai bản FlashTicket thử nghiệm trên `exp-app`. |
+| [`load/`](load/) | Kịch bản k6 và mức tải. Bộ điều khiển chạy các lượt tải nối tiếp nằm ở [chuoi_tai.py](load/controller/chuoi_tai.py). |
+| [`faults/`](faults/) | Công cụ tiêm lỗi, Toxiproxy và bộ mô phỏng VNPay. |
+| [`campaigns/`](campaigns/) | Lịch và bộ điều phối đợt thu. Dịch vụ RCA trực tuyến chế độ (b) nhận cảnh báo Grafana rồi chạy chẩn đoán ở [campaigns/online/](campaigns/online/). |
+| [`rca-service/`](rca-service/) | Chỉ có README. Mã dịch vụ vẫn ở `campaigns/online/`, chưa chuyển sang đây. |
+| [`tests/signals/`](tests/signals/) | Kiểm tín hiệu quan sát dọc luồng mua vé. |
+| [`provisioning/`](provisioning/) | Chỉ có README mô tả việc chuẩn bị máy trống. |
+| [`docs/`](docs/) | Sơ đồ kiến trúc và nguồn gốc các file cấu hình ban đầu. |
 
-## Trạng thái (16/11/2026)
+## Trạng thái sau lượt thử E5 (23/11/2026)
 
-- Nội dung đầu tiên chép từ máy đang chạy, kèm bảng nguồn gốc: [docs/sources-2026-11.md](docs/sources-2026-11.md).
-- Cấu hình trong `observability/` đã chuyển sang YAML và dùng biến cho địa chỉ, **chưa dùng để dựng lại máy**.
-  Máy vẫn chạy bản cũ ở `/opt/flash-ticket-obs/pinned` và `/opt/flash-ticket-app`.
-- Script trong `load/`, `faults/`, `campaigns/`, `app-host/scripts/` chép nguyên, còn viết cứng IP và đường dẫn cũ.
+- Bản lab đang chạy ở `/opt/rca-lab` trên `exp-obs` là [commit `1bb40ca`](https://github.com/levanminh04/flashticket-rca-lab/commit/1bb40ca48fdea145a3dcba97b034a412b245c523), cũng là đầu nhánh `main` tại mốc này. Sau E5, bộ điều phối RCA đã dừng. Grafana dùng lại nguồn kết quả trước E5 và giữ bộ luật cảnh báo W4. [Nhật ký triển khai T-073, lượt 19](https://github.com/levanminh04/RCA/blob/e4aa9d6e249aede7582e79e90469a134dd9f85ff/tasks/T-073-w5-rca-truc-tuyen/LOG.md)
+- Tên thư mục/dashboard còn mang mã task (`t065-…`). Minh chốt ngày 23/11 để việc tái cấu trúc sau W7. [Nhật ký điều phối T-070](https://github.com/levanminh04/RCA/blob/e4aa9d6e249aede7582e79e90469a134dd9f85ff/tasks/T-070-dieu-phoi-giai-doan-2/LOG.md)
 
 Luật làm việc: [AGENTS.md](AGENTS.md).
