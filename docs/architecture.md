@@ -44,8 +44,8 @@ máy tải (k6) ──HTTP 8081/8080──▶ exp-app                   └─�
 
 ## 4. Chỗ còn tạm
 
-- Kết quả RCA (JSON) được phục vụ qua thư mục `public/rca` của chính Grafana; nên chuyển sang API của
-  `rca-service` khi có.
+- Kết quả RCA (JSON) được phục vụ qua thư mục `public/rca` của chính Grafana; nên chuyển sang API riêng của
+  dịch vụ RCA khi có.
 - `allowUiUpdates: true`: sửa trên giao diện được lưu tạm vào DB Grafana, bị file ghi đè khi file đổi.
   Muốn giữ thay đổi thì export JSON và commit.
 - Chưa có luật cảnh báo.

@@ -1,7 +1,7 @@
 """Inspect/recover only the existing L1 mock. State/audit and configuration stay intact."""
 import datetime as dt,hashlib,json,os,subprocess,time,urllib.request
 from pathlib import Path
-root=Path('/opt/flash-ticket-app/l1-vnpay')
+root=Path('/srv/flashticket-rca/faults/vnpay')
 pidfile=root/'pid'
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
 before={n:digest(root/n) for n in ['mock-runner.py','mock_vnpay.py','mock.env','pid','state.json']}

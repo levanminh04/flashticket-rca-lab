@@ -2,19 +2,19 @@
 """T-068: build the four served dashboards from the T-065 L12 base (lab commit ab1c52c) — run on the laptop.
 
     py -3 -B observability/grafana/build_dashboards.py
-    RCA_G1_BO=t073-e5-001 py -3 -B observability/grafana/build_dashboards.py   (T-073 W5/E5: đổi nguồn hiển thị)
+    RCA_G1_BO=online-<lượt> py -3 -B observability/grafana/build_dashboards.py   (đổi nguồn hiển thị sang bộ trực tuyến)
 
-RCA_G1_BO: bộ dữ liệu G1 dưới /srv/rca-lab/rca-results/ mà dashboard đọc (mặc định t065-l11-001, I9 T-070). Khác mặc
-định thì mọi URL `public/rca/t065-l11-001` (cả phần lấy nguyên từ bản gốc ab1c52c) và tên bộ trong ghi chú trang
-"Bắt đầu" đổi sang bộ mới; script dừng nếu còn sót chuỗi t065-l11-001. Hoàn tác: sinh lại không đặt biến.
+RCA_G1_BO: bộ dữ liệu G1 dưới /srv/flashticket-rca/rca/results/ mà dashboard đọc (mặc định `dev`, I9 T-070).
+Bản gốc ab1c52c ghi tên bộ `t065-l11-001` (BO_GOC): mọi URL `public/rca/t065-l11-001` và tên bộ trong ghi chú trang
+"Bắt đầu" được đổi sang BO; script dừng nếu còn sót chuỗi BO_GOC. Hoàn tác: sinh lại không đặt biến.
 
 Base files are read with `git show ab1c52c:<path>` so the result does not depend on the working tree.
 Outputs (served; one provider per folder, see provisioning/dashboards/providers.yaml):
-    dashboards/00-start-here/t065-l5-muc-luc.json     "Bắt đầu tại đây"
+    dashboards/00-start-here/start.json               "Bắt đầu tại đây"
     dashboards/10-system/flashticket-he-thong.json    "Hệ thống FlashTicket"
-    dashboards/20-incidents/t065-l8b-rca.json          "RCA — sự cố"
-    dashboards/30-replay/t065-l8b-phat-lai.json        "RCA — phát lại có đáp án"
-dashboards/90-archive/ is kept as is and is not scanned by any provider (README.md: how to load it for W5).
+    dashboards/20-incidents/rca-incidents.json         "RCA — sự cố"
+    dashboards/30-replay/rca-replay.json               "RCA — phát lại có đáp án"
+Old archived dashboards (90-archive/) were removed from main on 2026-11 (tag truoc-don-2026-11).
 UIDs of existing dashboards are kept so old links keep working.
 """
 import copy
@@ -31,11 +31,12 @@ REPO = HERE.parents[1]
 DASH = HERE / 'dashboards'
 INF = {'type': 'yesoreyeram-infinity-datasource', 'uid': 'infinity-rca'}
 PROM = {'type': 'prometheus', 'uid': 'prometheus'}
-BO_MAC_DINH = 't065-l11-001'
+BO_GOC = 't065-l11-001'  # tên bộ trong bản gốc ab1c52c
+BO_MAC_DINH = 'dev'
 BO = os.environ.get('RCA_G1_BO', BO_MAC_DINH)
-if not re.fullmatch(r't0[0-9]{2}-[a-z0-9-]+', BO):
-    raise SystemExit('RCA_G1_BO phải là tên bộ dữ liệu dạng t0xx-…')
-DATA = 'http://localhost:3000/public/rca/' + BO_MAC_DINH  # đổi sang BO ở write()
+if not re.fullmatch(r'dev|online-[a-z0-9-]+|t0[0-9]{2}-[a-z0-9-]+', BO):
+    raise SystemExit('RCA_G1_BO phải là dev, online-… hoặc tên bộ cũ dạng t0xx-…')
+DATA = 'http://localhost:3000/public/rca/' + BO_GOC  # đổi sang BO ở write()
 V082 = 'V082-V066+H8a'
 NOTE = ('**Đồ thị dịch vụ (chỉ hiển thị).** Nút: thành phần của ca, màu và “#hạng” theo xếp hạng của **bản đang chọn** '
         '(đỏ: tự sinh — nghi nguồn; cam: kế thừa — bị kéo theo; xám: bình thường). '
@@ -218,10 +219,10 @@ def write(rel, obj):
     p = DASH / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     txt = json.dumps(obj, ensure_ascii=False, indent=1) + '\n'
-    if BO != BO_MAC_DINH:  # T-073: đổi nguồn hiển thị sang bộ BO
-        txt = txt.replace('public/rca/' + BO_MAC_DINH, 'public/rca/' + BO).replace('`' + BO_MAC_DINH + '`', '`' + BO + '`')
-        if BO_MAC_DINH in txt:
-            raise SystemExit(f'{rel}: còn chuỗi {BO_MAC_DINH} sau khi đổi nguồn; dừng')
+    if BO != BO_GOC:  # đổi nguồn hiển thị sang bộ BO
+        txt = txt.replace('public/rca/' + BO_GOC, 'public/rca/' + BO).replace('`' + BO_GOC + '`', '`' + BO + '`')
+        if BO_GOC in txt:
+            raise SystemExit(f'{rel}: còn chuỗi {BO_GOC} sau khi đổi nguồn; dừng')
     p.write_bytes(txt.encode('utf-8'))  # LF trên mọi máy
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -232,10 +233,10 @@ def main():
     idx, h_idx = git_json('observability/grafana/dashboards/00-start-here/t065-l5-muc-luc.json')
     out = {'base_commit': BASE_COMMIT, 'base_sha256': {'t065-l8b-rca': h_rca, 't065-l8b-phat-lai': h_rep,
                                                        't065-l5-muc-luc': h_idx}, 'out_sha256': {}}
-    out['out_sha256']['00-start-here/t065-l5-muc-luc.json'] = write('00-start-here/t065-l5-muc-luc.json', start(idx['uid']))
+    out['out_sha256']['00-start-here/start.json'] = write('00-start-here/start.json', start(idx['uid']))
     out['out_sha256']['10-system/flashticket-he-thong.json'] = write('10-system/flashticket-he-thong.json', system())
-    out['out_sha256']['20-incidents/t065-l8b-rca.json'] = write('20-incidents/t065-l8b-rca.json', incidents(rca))
-    out['out_sha256']['30-replay/t065-l8b-phat-lai.json'] = write('30-replay/t065-l8b-phat-lai.json', replay(rep))
+    out['out_sha256']['20-incidents/rca-incidents.json'] = write('20-incidents/rca-incidents.json', incidents(rca))
+    out['out_sha256']['30-replay/rca-replay.json'] = write('30-replay/rca-replay.json', replay(rep))
     print(json.dumps(out, indent=1))
 
 

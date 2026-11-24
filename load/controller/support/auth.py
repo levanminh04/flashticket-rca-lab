@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-ROOT=Path('/opt/flash-ticket-app')
+ROOT=Path('/opt/flashticket')
 def env(name='booking-service.env'):
     return dict(x.split('=',1) for x in (ROOT/'env'/name).read_text().splitlines() if x and not x.startswith('#'))
 

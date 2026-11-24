@@ -1,7 +1,7 @@
 """Install or inspect L1 reverse forwarding without touching existing SSH credentials."""
 import base64,datetime as dt,hashlib,json,os,subprocess,time
 from pathlib import Path
-root=Path('/opt/flash-ticket-app/l1-vnpay/tunnel')
+root=Path('/srv/flashticket-rca/faults/vnpay/tunnel')
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
 if ACTION=='prepare':
     os.umask(0o077);root.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -13,7 +13,7 @@ if ACTION=='prepare':
     (root/'tunnel-supervisor.py').write_bytes(source);(root/'tai-known-hosts').write_bytes(known)
     print(json.dumps({'utc':dt.datetime.now(dt.timezone.utc).isoformat(),'publicKey':(key.with_suffix('.key.pub')).read_text().strip(),
         'before':before,'after':{n:digest(root/n) for n in before},
-        'privateKeyStoredOnlyOn':'exp-app:/opt/flash-ticket-app/l1-vnpay/tunnel/forward-only.key'}))
+        'privateKeyStoredOnlyOn':'exp-app:/srv/flashticket-rca/faults/vnpay/tunnel/forward-only.key'}))
 elif ACTION in ['status','start']:
     pidpath=root/'supervisor.pid'
     pid=int(pidpath.read_text().strip()) if pidpath.exists() else None

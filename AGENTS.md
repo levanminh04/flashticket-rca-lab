@@ -16,18 +16,18 @@ bộ điều phối đợt thu và (sau này) dịch vụ RCA trực tuyến.
 1. **Phiên bản là commit git.** Không lập manifest hash cho từng file. Hồ sơ một lượt chạy ghi commit của repo này.
 2. **Máy chủ chỉ chạy cấu hình lấy từ một commit.** Không sửa tay trên máy. Lỡ sửa nóng thì commit lại ngay.
 3. **Dữ liệu không vào git.** Mỗi đợt thu có một file `SHA256SUMS` đi kèm dữ liệu, để kiểm khi chép đi chép lại.
-4. **Bí mật không vào git.** Mật khẩu, token, khóa, file env thật nằm trên máy ở `/etc/rca-lab/`.
+4. **Bí mật không vào git.** Mật khẩu, token, khóa, file env thật nằm trên máy ở `/etc/flashticket-rca/`.
    Cấu hình chỉ tham chiếu biến môi trường.
 5. **Địa chỉ máy chỉ nằm ở `inventory/`.** Cấu hình dùng biến, không viết cứng IP.
 6. **Tên thư mục và file bằng tiếng Anh**, dạng `kebab-case` (module Python dạng `snake_case`).
    Tài liệu viết tiếng Việt. File cũ chép từ đợt chiến dịch 11/2026 giữ tên gốc, có bảng nguồn gốc ở
    `docs/sources-2026-11.md`.
-7. Chỉ thêm thư mục khi cần; không đổi tên hay dời hàng loạt.
+7. Chỉ thêm thư mục khi cần; không đổi tên hay dời hàng loạt. Đợt dọn 11/2026 là ngoại lệ Minh duyệt; bảng tra tên cũ ở `docs/name-map.md`.
 
 ## 3. Thư mục trên máy chủ
 
 | Đường dẫn | Chứa gì | Sao lưu |
 |---|---|---|
-| `/opt/rca-lab/` | Bản git của repo này, đúng commit đang dùng | Không cần (dựng lại từ git) |
-| `/etc/rca-lab/` | Bí mật và env (root, quyền 600) | Không đưa vào git |
-| `/srv/rca-lab/` | Dữ liệu sinh ra: `runs/<run-id>/`, `rca-results/`, vùng ghi của Collector | Có |
+| `/opt/flashticket-rca/` | Bản git của repo này, cùng commit trên ba máy | Không cần (dựng lại từ git) |
+| `/etc/flashticket-rca/` | Bí mật và env (root, quyền 600) | Không đưa vào git |
+| `/srv/flashticket-rca/` | Dữ liệu sinh ra: `rca/` (gốc M1: `method/`, `cases/`, `outputs/`, `results/`, `venv/`), `runs/<ngày>-<mục-đích>/`, `ledger/`, `collector/`, `load/`, `alerts/`, `faults/`, `archive/` | Có |

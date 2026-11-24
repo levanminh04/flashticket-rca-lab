@@ -8,7 +8,7 @@ import sys
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from campaigns.lib import inventory  # noqa: E402
+from rca.lib import inventory  # noqa: E402
 
 ROOT = Path('/opt/rca-tai')
 

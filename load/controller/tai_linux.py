@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """L1 journey workload controller. Python 3.12 standard library, on exp-obs.
 
-Chạy từ bản git của repo lab (/opt/rca-lab). Địa chỉ máy đọc từ inventory/ (campaigns/lib/inventory.py);
-khóa bộ điều khiển ở /etc/rca-lab/controller/ (Q1(b), T-066); trạng thái, sổ sự kiện, STOP và đầu ra
-ở RCA_LAB_LOAD_STATE (mặc định /srv/rca-lab/load-controller). Phiên bản nguồn là commit git của repo lab
+Chạy từ bản git của repo lab (/opt/flashticket-rca). Địa chỉ máy đọc từ inventory/ (rca/lib/inventory.py);
+khóa bộ điều khiển ở /etc/flashticket-rca/controller/ (Q1(b), T-066); trạng thái, sổ sự kiện, STOP và đầu ra
+ở RCA_LAB_LOAD_STATE (mặc định /srv/flashticket-rca/load). Phiên bản nguồn là commit git của repo lab
 (thay linux-source-manifest.json của bản chạy cũ ~/rca-dieu-phoi).
 Credentials remain on exp-app and in the existing load-host secret file.
 All subprocess output is captured; the CLI emits exactly one JSON record.
@@ -25,10 +25,10 @@ import time
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[1]
 sys.path.insert(0, str(REPO))
-from campaigns.lib import inventory  # noqa: E402
+from rca.lib import inventory  # noqa: E402
 
-STATE = Path(os.environ.get('RCA_LAB_LOAD_STATE', '/srv/rca-lab/load-controller'))
-KEYDIR = Path(os.environ.get('RCA_LAB_CONTROLLER_KEYS', '/etc/rca-lab/controller'))
+STATE = Path(os.environ.get('RCA_LAB_LOAD_STATE', '/srv/flashticket-rca/load'))
+KEYDIR = Path(os.environ.get('RCA_LAB_CONTROLLER_KEYS', '/etc/flashticket-rca/controller'))
 TRANSPORT = 'http://127.0.0.1:19091'
 TARGETS = {'app': (inventory.public_ip('application'), 'id_ed25519'),
            'tai': (inventory.public_ip('load-generator'), 'id_ed25519')}
@@ -125,11 +125,11 @@ def verify_sources():
                               timeout=30, check=True).stdout.decode().strip()
     try:
         commit = git('rev-parse', 'HEAD')
-        dirty = git('status', '--porcelain', '--', 'load', 'campaigns', 'inventory')
+        dirty = git('status', '--porcelain', '--', 'load', 'rca', 'inventory')
     except (OSError, subprocess.SubprocessError):
         raise Failure('Cannot read lab git commit') from None
     if dirty:
-        raise Failure('Lab working tree is dirty under load/campaigns/inventory')
+        raise Failure('Lab working tree is dirty under load/rca/inventory')
     return {'labCommit': commit, 'environment': inventory.moi_truong()}
 
 
@@ -177,7 +177,7 @@ def renew_tokens(count):
     for item in pool['tokens']:
         if not item.get('access_token') or not item.get('refresh_token'):
             raise Failure('PKCE pool incomplete; secrets omitted')
-    path = '/etc/rca-lab/load-secret/l1-tokens.json'
+    path = '/etc/flashticket-rca/load-secret/l1-tokens.json'
     before = ssh('tai', f'test ! -f {path} || sha256sum {path}').decode().split()
     ssh('tai', f'umask 077; cat > {path}; chmod 600 {path}', payload,
         mutation='umask 077; cat [in-memory PKCE pool] > ' + path + '; chmod 600')
@@ -229,7 +229,7 @@ def start(args, manifest):
     if step and step >= seconds:
         raise Failure('BuocTai must be earlier than Seconds')
     # Refuse a reused tag before any login or token-file mutation.
-    ssh('tai', 'test ! -e /srv/rca-lab/load-runs/' + tag)
+    ssh('tai', 'test ! -e /srv/flashticket-rca/runs/' + tag)
     cfg = json.loads(source('k6/cau-hinh.json'))
     metadata = preflight(cfg['maxVUs'] * (2 if step else 1), force=True)
     if step and metadata['tokens']['minRefreshRemaining'] <= step + 60:
@@ -241,7 +241,7 @@ def start(args, manifest):
     prepare = '''import base64,hashlib,json,pathlib,subprocess
 if subprocess.check_output(['sudo','-n','docker','ps','-q','--filter','name=rca-tai-']).strip():
     raise SystemExit(2)
-root=pathlib.Path('/srv/rca-lab/load-runs/''' + tag + "')\nroot.mkdir()\n"
+root=pathlib.Path('/srv/flashticket-rca/runs/''' + tag + "')\nroot.mkdir()\n"
     prepare += 'files=' + repr(files) + '\n'
     prepare += "for name,value in files.items(): (root/name).write_bytes(base64.b64decode(value))\n"
     prepare += "(root/'token-metadata.json').write_text(" + repr(json.dumps(metadata)) + ")\n"
@@ -249,11 +249,11 @@ root=pathlib.Path('/srv/rca-lab/load-runs/''' + tag + "')\nroot.mkdir()\n"
     prepare += "(root/'inputs.sha256').write_text(''.join(hashlib.sha256((root/n).read_bytes()).hexdigest()+'  '+n+'\\n' for n in files))\n"
     prepare += "print(json.dumps({'prepared':True}))\n"
     remote_python('tai', prepare, mutation='mkdir out/' + tag + '; snapshot verified k6, run.json, token metadata, inputs.sha256')
-    out = '/srv/rca-lab/load-runs/' + tag
+    out = '/srv/flashticket-rca/runs/' + tag
     command = f'''set -euo pipefail
 date -u --iso-8601=seconds > {out}/start-utc.txt
 sudo -n docker run -d --name rca-tai-{tag} --user "$(id -u):$(id -g)" --network host \\
- -v {out}:/scripts:ro -v /etc/rca-lab/load-secret:/secret:ro -v {out}:/out \\
+ -v {out}:/scripts:ro -v /etc/flashticket-rca/load-secret:/secret:ro -v {out}:/out \\
  -e FT_TEST_ENVIRONMENT=true -e FT_LOAD_SECONDS={seconds} -e FT_JOURNEY_RATE={cfg['rate']} \\
  -e FT_LOAD_MULTIPLIER={mult} -e FT_LOAD_STEP_SECONDS={step} -e FT_MOCK_TRANSPORT_URL={TRANSPORT} \\
  {shlex.quote(cfg['image'])} run --quiet --log-format raw --out json=/out/raw.json --out csv=/out/raw.csv --summary-export /out/summary.json /scripts/hanh-trinh.js
@@ -278,7 +278,7 @@ def stop(tag):
 def receive(tag):
     if get(tag)['Running']:
         raise Failure('Container is running; receive refused, data retained')
-    root = '/srv/rca-lab/load-runs/' + tag
+    root = '/srv/flashticket-rca/runs/' + tag
     # Repeated receives preserve the first frozen export rather than rewriting its times/hashes.
     command = f'''set -euo pipefail
 cd {root}

@@ -1,6 +1,6 @@
 import base64,datetime as dt,json,time
 from pathlib import Path
-p=Path('/etc/rca-lab/load-secret/l1-tokens.json')
+p=Path('/etc/flashticket-rca/load-secret/l1-tokens.json')
 if not p.exists():
     print(json.dumps({'count':0,'minAccessRemaining':0,'minRefreshRemaining':0}));raise SystemExit()
 values=json.loads(p.read_text())['tokens'];now=int(time.time())

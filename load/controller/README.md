@@ -1,22 +1,22 @@
 # Dùng tải từ exp-obs
 
-> Cập nhật T-066 (đính chính 18/11/2026). Bản chạy hiện hành là bản git của repo lab trên exp-obs (`/opt/rca-lab`, detached HEAD: cập nhật bằng `git fetch` + `git checkout <commit>`). Thư mục `~/rca-dieu-phoi/` của bản chạy cũ **đã xóa**; các đoạn dưới đây nhắc tới nó là lịch sử.
+> Cập nhật T-066 (đính chính 18/11/2026). Bản chạy hiện hành là bản git của repo lab trên exp-obs (`/opt/flashticket-rca`, detached HEAD: cập nhật bằng `git fetch` + `git checkout <commit>`). Thư mục `~/rca-dieu-phoi/` của bản chạy cũ **đã xóa**; các đoạn dưới đây nhắc tới nó là lịch sử.
 
 Đường dẫn hiện hành:
 
 | Thứ | Đường dẫn |
 |---|---|
-| Mã | `/opt/rca-lab/load/controller/tai_linux.py` (địa chỉ máy đọc từ `inventory/` qua `campaigns/lib/inventory.py`) |
-| Khóa bộ điều khiển | `/etc/rca-lab/controller/` (biến `RCA_LAB_CONTROLLER_KEYS`), không chép sang máy khác |
-| Trạng thái, sổ sự kiện, marker bảo trì | `/srv/rca-lab/load-controller/` (biến `RCA_LAB_LOAD_STATE`) |
-| Kết quả `receive` | `/srv/rca-lab/load-controller/tai-out/<tag>/` |
-| **STOP của bộ tải** | `/srv/rca-lab/load-controller/STOP` |
-| **STOP của runner chiến dịch** (`campaigns/runner/runner4.py`) | `/srv/rca-lab/runs/STOP` (docstring cũ của runner còn ghi `~/rca-dieu-phoi/STOP`, không còn đúng) |
+| Mã | `/opt/flashticket-rca/load/controller/tai_linux.py` (địa chỉ máy đọc từ `inventory/` qua `rca/lib/inventory.py`) |
+| Khóa bộ điều khiển | `/etc/flashticket-rca/controller/` (biến `RCA_LAB_CONTROLLER_KEYS`), không chép sang máy khác |
+| Trạng thái, sổ sự kiện, marker bảo trì | `/srv/flashticket-rca/load/` (biến `RCA_LAB_LOAD_STATE`) |
+| Kết quả `receive` | `/srv/flashticket-rca/load/tai-out/<tag>/` |
+| **STOP của bộ tải** | `/srv/flashticket-rca/load/STOP` |
+| **STOP của runner chiến dịch** (`rca/batch/runner.py`) | `/srv/flashticket-rca/runs/STOP` (docstring cũ của runner còn ghi `~/rca-dieu-phoi/STOP`, không còn đúng) |
 
-Phụ thuộc: Python hệ thống của exp-obs phải có PyYAML (`python3-yaml`), vì `campaigns/lib/inventory.py` dùng `import yaml`. Môi trường `venv-m1` của M1 không cần và không có gói này; không cài vào venv đã ghim.
+Phụ thuộc: Python hệ thống của exp-obs phải có PyYAML (`python3-yaml`), vì `rca/lib/inventory.py` dùng `import yaml`. Môi trường venv của M1 (`/srv/flashticket-rca/rca/venv`) không cần và không có gói này; không cài vào venv đã ghim.
 
 ```sh
-cd /opt/rca-lab
+cd /opt/flashticket-rca
 python3 load/controller/tai_linux.py test-duong
 python3 load/controller/tai_linux.py start --tag ma-moi --seconds 1800 --buoc-tai 600 --multiplier 3
 python3 load/controller/tai_linux.py get --tag ma-moi

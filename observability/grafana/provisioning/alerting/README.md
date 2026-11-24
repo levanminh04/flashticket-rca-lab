@@ -1,16 +1,15 @@
-# Luật cảnh báo W4 (T-072)
+# Luật cảnh báo
 
 Grafana nạp mọi file `.yaml`/`.yml` ở thư mục này khi khởi động (compose gắn `./grafana/provisioning` vào Grafana).
 
-- `t072-luat.yaml`: 11 luật (p95 và tỷ lệ 5xx theo route gateway `booking`, `event`, `payment`, `ticket`;
-  liveness; 2 luật mất quan sát), nhóm `t072-w4`, nhịp 10 s, và contact point `t072-bo-nhan-nhe`
-  (`http://t072-bo-nhan:9172/t072`). Sinh bởi `results/T-072/sinh_luat_grafana.py` (repo RCA) từ `bieu-thuc.json`
-  (T072-bieu-thuc-1) và `nguong.json` (sha256 c8f448543c2f…, tính máy móc từ E2 theo T072-chon-nguong-2). Không sửa tay.
-- `t072-thu-e3.yaml` (commit N): 4 luật thử của E3 (bản sao p95, ngưỡng 0,005 s, nhãn `t072_loai = thu`); chỉ cháy khi có tải.
-  Commit G xóa file này và đổi `t072-thu-e3-go.yaml.mau` → `t072-thu-e3-go.yaml` (`deleteRules` 4 uid) trước giờ hiệu lực E4.
-- `*.yaml.mau`: Grafana KHÔNG nạp (đuôi khác). `t072-thu-e3-go.yaml.mau` = gỡ luật thử (kích hoạt ở G);
-  `t072-hoan-tac-n.yaml.mau` = gỡ mọi đối tượng của T-072 nếu N nạp lỗi (kích hoạt ở commit H, con của commit trước N).
-  Sinh bởi `results/T-072/sinh_luat_thu_e3.py`.
+- `rules.yaml`: 11 luật (p95 và tỷ lệ 5xx theo route gateway `booking`, `event`, `payment`, `ticket`;
+  liveness; 2 luật mất quan sát), nhóm `canh-bao`, nhịp 10 s, folder "Cảnh báo FlashTicket", và contact point
+  `t072-bo-nhan-nhe` (`http://t072-bo-nhan:9172/t072`, bộ nhận ở `../../../alert-receiver/`).
+- File được đổi tên từ `t072-luat.yaml`. Bản đó sinh bởi `results/T-072/sinh_luat_grafana.py` (repo RCA) từ `bieu-thuc.json`
+  (T072-bieu-thuc-1) và `nguong.json` (sha256 c8f448543c2f…, tính máy móc từ E2 theo T072-chon-nguong-2). Đợt dọn 11/2026
+  chỉ đổi `folder` và tên nhóm; biểu thức, ngưỡng, UID, `title`, nhãn và đích gửi giữ nguyên. Không sửa tay phần khác.
+- UID `t072-*`, `title` và nhãn `t072_uid` **giữ tên cũ**: `rca/online/incidents.py` lấy mã luật từ nhãn `t072_uid`, và từ
+  `rulename` (= `title`) với cảnh báo NoData/DatasourceError; hồ sơ cũ ở repo RCA cũng dẫn theo UID.
 - Định tuyến đặt ở từng luật (`notification_settings`), không đổi cây chính sách thông báo hiện có.
-- Nạp lên exp-obs chỉ ở khung S2, sau khi Minh duyệt commit (I5, I7); quy trình ở `results/T-072/ke-hoach-e3.md` (repo RCA).
-- Bộ nhận nhẹ để kiểm giao nhận ở E3: `../../t072-bo-nhan/bo_nhan.py` (dịch vụ compose `t072-bo-nhan` do T-073 thêm).
+- Các file gỡ luật thử và hoàn tác của E3/E5 đã bỏ khỏi `main` (tag `truoc-don-2026-11`), sau khi kiểm luật thử và
+  contact point `t073-webhook-e5` không còn trong Grafana.

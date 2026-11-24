@@ -6,8 +6,8 @@ Chạy một danh sách lượt khai trước, lần lượt, bằng tai_linux.p
 Không sửa tai_linux.py; không phát gì ngoài danh sách; không có lượt bù; không bao giờ gọi `stop` thiếu --tag.
 
 Dùng (chạy nền trên server, không cần laptop giữ kết nối):
-  cd /opt/rca-lab && nohup python3 load/controller/chuoi_tai.py --ke-hoach KHAI.json --sha256 HASH \\
-        --kho /srv/rca-lab/runs/t071-e2 > /srv/rca-lab/runs/t071-e2.out 2>&1 &
+  cd /opt/flashticket-rca && nohup python3 load/controller/chuoi_tai.py --ke-hoach KHAI.json --sha256 HASH \\
+        --kho /srv/flashticket-rca/runs/<ngày>-<mục-đích> > /srv/flashticket-rca/runs/<ngày>-<mục-đích>.out 2>&1 &
   python3 chuoi_tai.py ... --chay-kho      # chạy khô: kiểm kế hoạch, tag chưa dùng, in lệnh; không phát tải
 
 Kế hoạch: JSON có mảng `luot` (theo thứ tự), mỗi phần tử {thu_tu, tag, seconds, buoc_tai, multiplier}.
@@ -25,10 +25,10 @@ Trạng thái một tag, suy từ nhật ký (bước xa nhất đã ghi):
   lần chạy lại tiếp đúng bước còn thiếu của tag đó; không start lại tag đã có sap_phat (tag không tái dùng).
 
 Dừng chuỗi (không phát lượt kế; ghi `dung_chuoi`, trạng thái cuối):
-  - có `/srv/rca-lab/runs/STOP`, `/srv/rca-lab/load-controller/STOP` (I8) hoặc `<kho>/DUNG`, kiểm trước mỗi lượt;
+  - có `/srv/flashticket-rca/runs/STOP`, `/srv/flashticket-rca/load/STOP` (I8) hoặc `<kho>/DUNG`, kiểm trước mỗi lượt;
     STOP còn được kiểm trong lúc chờ lượt (khi có STOP, tai_linux từ chối cả `get`) — lượt đó giữ, chưa kết thúc;
     `DUNG` không ngắt lượt đang chạy: lượt đó chạy hết, kiểm, nhận, rồi chuỗi dừng;
-  - commit `/opt/rca-lab` khác commit ghi ở lần chạy đầu của kho này, hoặc cây bẩn (I7);
+  - commit `/opt/flashticket-rca` khác commit ghi ở lần chạy đầu của kho này, hoặc cây bẩn (I7);
   - lỗi start thuộc loại chung, hoặc 2 lượt liền không start được (cả hai khôi phục từ nhật ký khi chạy lại,
     trừ khi đã có lần chạy với --tiep-sau-dung sau bản ghi `hong` đó);
   - 20 lần `get` lỗi liền (chưa xác minh trạng thái container);
@@ -61,7 +61,7 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[1]
 TAI_LINUX = ROOT / 'tai_linux.py'
 STOP_FILES = [Path(p) for p in os.environ.get(  # biến môi trường chỉ để chạy thử
-    'CHUOI_TAI_STOP', os.pathsep.join(['/srv/rca-lab/runs/STOP', '/srv/rca-lab/load-controller/STOP'])
+    'CHUOI_TAI_STOP', os.pathsep.join(['/srv/flashticket-rca/runs/STOP', '/srv/flashticket-rca/load/STOP'])
 ).split(os.pathsep) if p]
 PROM = os.environ.get('CHUOI_TAI_PROM', 'http://127.0.0.1:9090')
 TAG_RE = re.compile('[a-z0-9][a-z0-9-]{0,47}')
@@ -171,7 +171,7 @@ class Chuoi:
         try:
             c = subprocess.run(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], stdout=subprocess.PIPE,
                                stderr=subprocess.DEVNULL, timeout=30, check=True).stdout.decode().strip()
-            ban = subprocess.run(['git', '-C', str(REPO), 'status', '--porcelain', '--', 'load', 'campaigns',
+            ban = subprocess.run(['git', '-C', str(REPO), 'status', '--porcelain', '--', 'load', 'rca',
                                   'inventory'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30,
                                  check=True).stdout.decode().strip()
             return c, bool(ban)
@@ -191,9 +191,9 @@ class Chuoi:
             return s
         c, ban = self.commit()
         if c != commit0:
-            return f'commit /opt/rca-lab khác commit đầu của kho: {commit0} → {c}'
+            return f'commit /opt/flashticket-rca khác commit đầu của kho: {commit0} → {c}'
         if ban:
-            return 'cây repo lab bẩn ở load/campaigns/inventory'
+            return 'cây repo lab bẩn ở load/rca/inventory'
         return None
 
     def prom(self, expr, t):
@@ -465,7 +465,7 @@ class Chuoi:
                                 'lenh': ['python3', str(self.tai_linux), *self.lenh_start(l)],
                                 'tag_chua_dung_tren_may_tai': not g.get('ok'),
                                 'get': g.get('error') if not g.get('ok') else 'CONTAINER ĐÃ TỒN TẠI',
-                                'tai_out_ton_tai': (Path('/srv/rca-lab/load-controller/tai-out') / l['tag']).exists(),
+                                'tai_out_ton_tai': (Path('/srv/flashticket-rca/load/tai-out') / l['tag']).exists(),
                                 'buoc_theo_nhat_ky': self.buoc_tag(l['tag'])})
             time.sleep(0.3)
         out['tong_giay_tai'] = sum(l['seconds'] for l in ke_hoach)

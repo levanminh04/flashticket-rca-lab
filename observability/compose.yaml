@@ -3,6 +3,7 @@
 # Khác bản đang chạy: đường dẫn cấu hình tương đối trong repo; IP riêng lấy từ biến OBS_PRIVATE_IP;
 # dữ liệu ghi vào ${RCA_LAB_DATA}; bí mật ở ${RCA_LAB_SECRETS}; volume giữ tên cũ để dùng lại dữ liệu.
 # Image ghim theo digest, giống bản đang chạy.
+name: flash-ticket-obs-pinned  # giữ tên project cũ: volume và mạng gắn theo tên này
 services:
   prometheus:
     image: prom/prometheus@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
@@ -68,14 +69,14 @@ services:
     image: grafana/grafana@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
     mem_limit: 768m
     env_file:
-    - ${RCA_LAB_SECRETS:-/etc/rca-lab}/grafana.env
+    - ${RCA_LAB_SECRETS:-/etc/flashticket-rca}/grafana.env
     ports:
     - ${OBS_PRIVATE_IP}:3000:3000
     volumes:
     - grafana-data:/var/lib/grafana
     - ./grafana/provisioning:/etc/grafana/provisioning:ro
     - ./grafana/dashboards:/etc/grafana/dashboards:ro
-    - ${RCA_LAB_DATA:-/srv/rca-lab}/rca-results:/usr/share/grafana/public/rca:ro
+    - ${RCA_LAB_DATA:-/srv/flashticket-rca}/rca/results:/usr/share/grafana/public/rca:ro
     container_name: flash-ticket-obs-grafana
     restart: unless-stopped
     logging:
@@ -94,7 +95,7 @@ services:
     - --config=/etc/otel/config.yaml
     volumes:
     - ./collector/gateway.yaml:/etc/otel/config.yaml:ro
-    - ${RCA_LAB_DATA:-/srv/rca-lab}/collector-gateway:/data
+    - ${RCA_LAB_DATA:-/srv/flashticket-rca}/collector:/data
     container_name: flash-ticket-obs-collector
     restart: unless-stopped
     logging:

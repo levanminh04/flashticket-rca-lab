@@ -1,5 +1,6 @@
 # Chạy Collector agent trên máy ứng dụng. Project hiện hành: flash-ticket-collector.
 # docker compose -p flash-ticket-collector -f agent-compose.yaml --env-file ../../inventory/oracle-exp.env up -d
+name: flash-ticket-collector  # giữ tên project cũ
 services:
   collector:
     image: otel/opentelemetry-collector-contrib@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
@@ -11,10 +12,10 @@ services:
     command:
     - --config=/etc/otel/config.yaml
     env_file:
-    - ${RCA_LAB_SECRETS:-/etc/rca-lab}/collector.env
+    - ${RCA_LAB_SECRETS:-/etc/flashticket-rca}/collector.env
     volumes:
     - ./agent-docker-host.yaml:/etc/otel/config.yaml:ro
-    - ${RCA_LAB_DATA:-/srv/rca-lab}/collector-agent:/data
+    - ${RCA_LAB_DATA:-/srv/flashticket-rca}/collector:/data
     - /var/lib/docker/containers:/var/lib/docker/containers:ro
     - /var/run/docker.sock:/var/run/docker.sock:ro
     - /:/hostfs:ro

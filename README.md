@@ -27,19 +27,23 @@ Chi tiết: [docs/architecture.md](docs/architecture.md).
 | Thư mục | Nội dung |
 |---|---|
 | [`inventory/`](inventory/) | Danh mục máy và biến cấu hình. |
-| [`observability/`](observability/) | Cấu hình thu tín hiệu và hiển thị trên Grafana. Các luật cảnh báo W4 nằm trong [t072-luat.yaml](observability/grafana/provisioning/alerting/t072-luat.yaml). |
-| [`app-host/`](app-host/) | Cấu hình Compose và công cụ dựng, triển khai bản FlashTicket thử nghiệm trên `exp-app`. |
-| [`load/`](load/) | Kịch bản k6 và mức tải. Bộ điều khiển chạy các lượt tải nối tiếp nằm ở [chuoi_tai.py](load/controller/chuoi_tai.py). |
-| [`faults/`](faults/) | Công cụ tiêm lỗi, Toxiproxy và bộ mô phỏng VNPay. |
-| [`campaigns/`](campaigns/) | Lịch và bộ điều phối đợt thu. Dịch vụ RCA trực tuyến chế độ (b) nhận cảnh báo Grafana rồi chạy chẩn đoán ở [campaigns/online/](campaigns/online/). |
-| [`rca-service/`](rca-service/) | Chỉ có README. Mã dịch vụ vẫn ở `campaigns/online/`, chưa chuyển sang đây. |
+| [`test-environment/`](test-environment/) | Cách dựng bản FlashTicket thử nghiệm trên `exp-app`: file phủ lên Compose của nhóm, build, triển khai. Không chứa code FlashTicket. |
+| [`observability/`](observability/) | Collector, Prometheus, Loki, Tempo, Grafana (dashboard, [luật cảnh báo](observability/grafana/provisioning/alerting/rules.yaml)) và [bộ nhận cảnh báo](observability/alert-receiver/). |
+| [`load/`](load/) | Kịch bản k6, mức tải, bộ điều khiển tải. Chạy các lượt tải nối tiếp: [chuoi_tai.py](load/controller/chuoi_tai.py). |
+| [`faults/`](faults/) | Tiêm lỗi, Toxiproxy, VNPay giả. |
+| [`rca/`](rca/) | Chạy RCA trên máy quan sát: [`online/`](rca/online/) (nhận cảnh báo → gom sự cố → chụp dữ liệu → V082 → kết quả cho Grafana), [`batch/`](rca/batch/) (chạy hàng loạt theo lịch), [`lib/`](rca/lib/) (phần dùng chung). Mã phương pháp không nằm ở đây: [`rca/method.lock`](rca/method.lock) ghi bản đang chạy trong repo RCA. |
 | [`tests/signals/`](tests/signals/) | Kiểm tín hiệu quan sát dọc luồng mua vé. |
-| [`provisioning/`](provisioning/) | Chỉ có README mô tả việc chuẩn bị máy trống. |
-| [`docs/`](docs/) | Sơ đồ kiến trúc và nguồn gốc các file cấu hình ban đầu. |
+| [`docs/`](docs/) | Kiến trúc, [bảng tra tên cũ → mới](docs/name-map.md), nguồn gốc file ban đầu. |
 
-## Trạng thái sau lượt thử E5 (23/11/2026)
+## Trên máy
 
-- Bản lab đang chạy ở `/opt/rca-lab` trên `exp-obs` là [commit `1bb40ca`](https://github.com/levanminh04/flashticket-rca-lab/commit/1bb40ca48fdea145a3dcba97b034a412b245c523), cũng là đầu nhánh `main` tại mốc này. Sau E5, bộ điều phối RCA đã dừng. Grafana dùng lại nguồn kết quả trước E5 và giữ bộ luật cảnh báo W4. [Nhật ký triển khai T-073, lượt 19](https://github.com/levanminh04/RCA/blob/e4aa9d6e249aede7582e79e90469a134dd9f85ff/tasks/T-073-w5-rca-truc-tuyen/LOG.md)
-- Tên thư mục/dashboard còn mang mã task (`t065-…`). Minh chốt ngày 23/11 để việc tái cấu trúc sau W7. [Nhật ký điều phối T-070](https://github.com/levanminh04/RCA/blob/e4aa9d6e249aede7582e79e90469a134dd9f85ff/tasks/T-070-dieu-phoi-giai-doan-2/LOG.md)
+| Đường | Chứa gì |
+|---|---|
+| `/opt/flashticket-rca/` | Bản git của repo này (cùng commit trên cả ba máy) |
+| `/etc/flashticket-rca/` | Bí mật, file env của phía RCA |
+| `/srv/flashticket-rca/` | `rca/` (gốc M1: `method/`, `cases/`, `outputs/`, `results/`, `venv/`), `runs/`, `ledger/`, `collector/`, `load/`, `alerts/`, `faults/`, `archive/` |
+| `/opt/flashticket/` (exp-app) | FlashTicket thử nghiệm: `src/`, `build/`, `compose/`, `env/`, `infra/`, `secrets/`, `otel/` |
+
+Tên cũ (trước 11/2026, mang mã task) tra ở [docs/name-map.md](docs/name-map.md). Trạng thái trước đợt dọn: tag [`truoc-don-2026-11`](https://github.com/levanminh04/flashticket-rca-lab/tree/truoc-don-2026-11).
 
 Luật làm việc: [AGENTS.md](AGENTS.md).

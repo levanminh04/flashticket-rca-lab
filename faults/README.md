@@ -4,7 +4,7 @@ Công cụ gây lỗi có chủ đích cho thực nghiệm RCA.
 
 | Thư mục | Nội dung |
 |---|---|
-| `injectors/docker/` | `inj3.py`: bộ tiêm lỗi đã dùng ở đợt thu bù 3 (11/2026) trên máy chạy Docker Compose |
+| `injectors/docker/` | `inject.py`: bộ tiêm lỗi trên máy chạy Docker Compose (trước 11/2026 tên `inj3.py`); trạng thái ở `/srv/flashticket-rca/faults/inject-state/` |
 | `toxiproxy/` | Danh sách proxy đang chạy trên exp-app (đường nối service → DB/cache/broker đi qua Toxiproxy) |
 | `mocks/vnpay/` | VNPay giả để luồng thanh toán chạy trọn trong môi trường thử |
 
