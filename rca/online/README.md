@@ -27,12 +27,14 @@ Không file nào đọc sổ tiêm, tên ô hay đáp án.
     # không dùng down vì cùng project có bộ nhận nhẹ t072-bo-nhan chạy liên tục)
     # chi tiết, cả bộ nhận E3 của T-072: repo RCA results/T-073/trien-khai-bo-nhan.md
     # bộ điều phối
-    RCA_ONLINE_OUT=/srv/flashticket-rca/runs/<ngày>-online python3 -B rca/online/orchestrator.py chay \
+    cd /opt/flashticket-rca
+    RCA_ONLINE_OUT=/srv/flashticket-rca/runs/<ngày>-online python3 -B /opt/flashticket-rca/rca/online/orchestrator.py chay \
         --ra /srv/flashticket-rca/rca/results/online-<lượt> [--khoi-tao chep:/srv/flashticket-rca/rca/results/dev]
     # dừng: touch /srv/flashticket-rca/runs/<ngày>-online/STOP  (không bắt đầu bước mới)
 
 Kiểm trên ca cũ (dev):
 
+    cd /opt/flashticket-rca   # các lệnh dưới chạy từ gốc repo
     sudo python3 -B rca/online/check_old_case.py chuan-bi --ca <mã cũ>
     RCA_ONLINE_OUT=/srv/flashticket-rca/runs/<ngày>-online-dev RCA_M1_ROOT=/srv/flashticket-rca/rca/online-dev \
       python3 -B rca/online/orchestrator.py mot --t <t của gói cũ> --ra /srv/flashticket-rca/rca/results/online-dev-001 \

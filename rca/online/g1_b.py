@@ -23,6 +23,37 @@ import sys
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 CAM_GHI = '/srv/flashticket-rca/rca/results/dev'
+GOC_GHI = '/srv/flashticket-rca/rca/results'  # mọi bộ trực tuyến nằm ngay dưới thư mục này (I9)
+
+
+def kiem_dich(ra, goc=GOC_GHI):
+    """Đích ghi G1 (tiến trình chạy root) phải là `<goc>/online-<tên>`: con trực tiếp của gốc đã chuẩn hóa, không phải
+    liên kết tượng trưng, không phải bộ `dev`, và không có liên kết tượng trưng ở các thư mục con sẽ ghi.
+    Trả đường đã chuẩn hóa; mọi thao tác ghi sau đó dùng đường này."""
+    import re
+    p = pathlib.Path(ra)
+    if p.is_symlink():
+        raise SystemExit('đích ghi là liên kết tượng trưng; từ chối (I9)')
+    r = p.resolve()
+    ten_dung = re.fullmatch(r'online-[a-z0-9][a-z0-9-]*', r.name)
+    if r.parent != pathlib.Path(goc).resolve() or not ten_dung or r == pathlib.Path(CAM_GHI).resolve():
+        raise SystemExit(f'chỉ ghi vào {goc}/online-* (I9); nhận {ra}')
+    for sub in ('du-lieu', 'service-graph'):
+        if (r / sub).is_symlink():
+            raise SystemExit(f'{r / sub} là liên kết tượng trưng; từ chối (I9)')
+    return r
+
+
+def kiem_nguon_chep(src, goc=GOC_GHI):
+    """Nguồn `--khoi-tao chep:` phải là một bộ ngay dưới gốc kết quả, và cây chép không chứa liên kết tượng trưng."""
+    s = pathlib.Path(src)
+    if s.is_symlink() or s.resolve().parent != pathlib.Path(goc).resolve():
+        raise SystemExit(f'nguồn chép phải là một bộ ngay dưới {goc}; nhận {src}')
+    for sub in ('du-lieu', 'service-graph'):
+        for x in [s / sub, *((s / sub).rglob('*') if (s / sub).exists() else [])]:
+            if x.is_symlink():
+                raise SystemExit(f'nguồn chép có liên kết tượng trưng: {x}')
+    return s.resolve()
 NGUON_B = 't073-b'
 PHIEN_BAN_KHOI = 'b-1'
 
@@ -39,7 +70,7 @@ def khoi_tao(ra, chi_muc_nguon, kieu, BAN):
     if (R / 'chi-muc-ban.json').exists():
         return 'da_co'
     if kieu.startswith('chep:'):
-        src = pathlib.Path(kieu.split(':', 1)[1])
+        src = kiem_nguon_chep(kieu.split(':', 1)[1])
         for sub in ('du-lieu', 'service-graph'):
             if (src / sub).exists():
                 shutil.copytree(src / sub, pathlib.Path(ra) / sub, symlinks=True)
@@ -75,8 +106,7 @@ def main():
     a = ap.parse_args()
     if os.geteuid() != 0:
         raise SystemExit('chạy bằng root (sudo)')
-    if pathlib.Path(a.ra).resolve() == pathlib.Path(CAM_GHI).resolve() or not pathlib.Path(a.ra).name.startswith('online-'):
-        raise SystemExit('chỉ ghi vào bộ dữ liệu rca/results/online-* (I9)')
+    a.ra = str(kiem_dich(a.ra))
     if a.chi_khoi_tao:
         kt = khoi_tao(a.ra, a.chi_muc_nguon, a.khoi_tao, nap_sau_v082().BAN)
         print(json.dumps({'ra': a.ra, 'khoi_tao': kt}, ensure_ascii=False))

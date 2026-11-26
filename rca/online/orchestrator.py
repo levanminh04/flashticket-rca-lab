@@ -248,6 +248,10 @@ def main():
     ap.add_argument('--mot-lan', action='store_true', help='xử lý spool một lượt rồi thoát')
     ap.add_argument('--dev-capture'); ap.add_argument('--dev-prom'); ap.add_argument('--dev-bo-sung')
     a = ap.parse_args()
+    import g1_b  # kiểm đích sớm, cùng quy tắc với điểm ghi root (I9)
+    a.ra = str(g1_b.kiem_dich(a.ra))
+    if a.khoi_tao.startswith('chep:'):
+        g1_b.kiem_nguon_chep(a.khoi_tao.split(':', 1)[1])
     OUT.mkdir(parents=True, exist_ok=True)
     a.spool = a.spool or str(OUT / 'spool')
     lock = open(OUT / '.lock', 'w')

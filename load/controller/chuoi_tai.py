@@ -453,19 +453,20 @@ class Chuoi:
         return 0 if not con else 1
 
     def chay_kho(self, ke_hoach, h):
-        """Không phát tải: kiểm kế hoạch, điều kiện dừng, tag chưa dùng (get chỉ đọc), in đúng lệnh sẽ gọi.
+        """Không phát tải: kiểm kế hoạch, điều kiện dừng, tag chưa dùng (tai_linux kiem-tag, chỉ đọc), in đúng lệnh sẽ gọi.
         Đọc nhật ký không khóa (chỉ để báo)."""
         self.doc_nhat_ky()
         commit0, ban = self.commit()
         out = {'che_do': 'chay_kho', 'ke_hoach': self.a.ke_hoach, 'sha256': h, 'lab_commit': commit0,
                'cay_ban': ban, 'ly_do_dung_neu_chay': self.ly_do_dung(commit0), 'luot': []}
         for l in ke_hoach:
-            g = self.tl('get', '--tag', l['tag'], timeout=180)
+            k = self.tl('kiem-tag', '--tag', l['tag'], timeout=180)
+            da_dung = (k.get('result') or {}).get('da_dung') if k.get('ok') else None
             out['luot'].append({'thu_tu': l['thu_tu'], 'tag': l['tag'],
                                 'lenh': ['python3', str(self.tai_linux), *self.lenh_start(l)],
-                                'tag_chua_dung_tren_may_tai': not g.get('ok'),
-                                'get': g.get('error') if not g.get('ok') else 'CONTAINER ĐÃ TỒN TẠI',
-                                'tai_out_ton_tai': (Path('/srv/flashticket-rca/load/tai-out') / l['tag']).exists(),
+                                # None = không kiểm được (lỗi đọc máy), không phải "chưa dùng"
+                                'tag_chua_dung': (not da_dung) if da_dung is not None else None,
+                                'dau_vet_tag': da_dung if da_dung is not None else 'KHÔNG KIỂM ĐƯỢC: ' + str(k.get('error')),
                                 'buoc_theo_nhat_ky': self.buoc_tag(l['tag'])})
             time.sleep(0.3)
         out['tong_giay_tai'] = sum(l['seconds'] for l in ke_hoach)

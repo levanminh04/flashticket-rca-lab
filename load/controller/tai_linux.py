@@ -222,14 +222,33 @@ def preflight(count=20, force=False):
     return result
 
 
+def tag_da_dung(tag):
+    """Mọi dấu vết đã có của tag: thư mục lượt trên máy tải (đang dùng và archive), container k6, đầu ra đã nhận trên
+    exp-obs (đang dùng và archive). Lỗi đọc máy ném Failure; không bao giờ coi lỗi đọc là "chưa dùng"."""
+    dau = [str(p) for p in [STATE / 'tai-out' / tag, *sorted(Path('/srv/flashticket-rca/archive').glob('*/load-tai-out/' + tag))]
+           if p.exists()]
+    out = ssh('tai', f'''set -eu
+for p in /srv/flashticket-rca/runs/{tag} /srv/flashticket-rca/archive/*/load-runs/{tag}; do
+  if [ -e "$p" ]; then echo "tai:$p"; fi
+done
+names=$(sudo -n docker ps -a --format '{{{{.Names}}}}')
+for n in $names; do if [ "$n" = "rca-tai-{tag}" ]; then echo "tai:container:$n"; fi; done
+echo KIEM-XONG''').decode().split()
+    if not out or out[-1] != 'KIEM-XONG':
+        raise Failure('Tag check on load host incomplete')
+    return dau + out[:-1]
+
+
 def start(args, manifest):
     guard()
     assert_idle()
     tag, seconds, step, mult = args.tag, args.seconds, args.buoc_tai, args.multiplier
     if step and step >= seconds:
         raise Failure('BuocTai must be earlier than Seconds')
-    # Refuse a reused tag before any login or token-file mutation.
-    ssh('tai', 'test ! -e /srv/flashticket-rca/runs/' + tag)
+    # Refuse a reused tag before any login or token-file mutation (gồm cả tag đã chuyển vào archive).
+    dau = tag_da_dung(tag)
+    if dau:
+        raise Failure('Tag already used: ' + ', '.join(dau))
     cfg = json.loads(source('k6/cau-hinh.json'))
     metadata = preflight(cfg['maxVUs'] * (2 if step else 1), force=True)
     if step and metadata['tokens']['minRefreshRemaining'] <= step + 60:
@@ -335,7 +354,7 @@ def main():
     os.umask(0o077)
     STATE.mkdir(parents=True, exist_ok=True)
     parser = Parser(add_help=False)
-    parser.add_argument('command', choices=['test-duong', 'start', 'get', 'stop', 'receive'])
+    parser.add_argument('command', choices=['test-duong', 'start', 'get', 'stop', 'receive', 'kiem-tag'])
     parser.add_argument('--tag')
     parser.add_argument('--seconds', type=bounded(1, 3600), default=300)
     parser.add_argument('--buoc-tai', type=bounded(1, 3599), default=0)
@@ -343,11 +362,13 @@ def main():
     args = parser.parse_args()
     if args.tag and not re.fullmatch('[a-z0-9][a-z0-9-]{0,47}', args.tag):
         raise Failure('Invalid tag')
-    if args.command in ('start', 'get', 'receive') and not args.tag:
+    if args.command in ('start', 'get', 'receive', 'kiem-tag') and not args.tag:
         raise Failure('--tag is required')
     if args.command == 'stop':
         return stop(args.tag)  # Explicit emergency stop still works with STOP/hash mismatch.
     manifest = verify_sources()
+    if args.command == 'kiem-tag':  # chỉ đọc; dùng chung quy tắc với start
+        return {'tag': args.tag, 'da_dung': tag_da_dung(args.tag)}
     if args.command in ('start', 'test-duong', 'receive'):
         with (STATE / 'tai-linux.lock').open('a') as lock:
             try:

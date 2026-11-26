@@ -3,7 +3,8 @@
 # Dùng: nohup bash build.sh <revision-đầy-đủ> <nhãn> [verify|build|all] > /dev/null 2>&1 &
 #   verify: mvnw verify cho 7 service; Booking, Event chạy thêm verify -P rca-test.
 #   build : package -DskipTests (Booking, Event với -P rca-test), docker build, ghi manifest.
-# Đầu ra: /opt/flashticket/build/<sha8>-logs/ (log từng bước, tien-do.tsv, build-manifest.json).
+# Đầu ra: worktree /opt/flashticket/build/<sha8>/ (dùng chung theo revision); log theo từng lần chạy
+#   /opt/flashticket/build/<sha8>-<nhãn>-<UTC>-logs/ (log từng bước, tien-do.tsv, build-manifest.json, <phase>.done).
 # Image: ft-local/<service>:arm64-<nhãn>-<sha8>. Không đụng image hay container đang chạy.
 set -Euo pipefail
 REV=${1:?revision (40 ký tự)}
@@ -13,7 +14,7 @@ PHASE=${3:-all}
 export MAVEN_OPTS='-Xmx768m -Djava.awt.headless=true' DOCKER_BUILDKIT=1
 SRC=/opt/flashticket/src
 T=/opt/flashticket/build/${REV:0:8}
-L=/opt/flashticket/build/${REV:0:8}-logs
+L=/opt/flashticket/build/${REV:0:8}-$LABEL-$(date -u +%Y%m%dT%H%M%SZ)-logs
 SVCS="discovery-server api-gateway user-service event-service ticket-service booking-service payment-service"
 FAULT="booking-service event-service"
 mkdir -p "$L"

@@ -18,7 +18,6 @@ In một dòng JSON mỗi lệnh. Không gửi nhãn tới ứng dụng. Đầu 
 import json, os, signal, socket, subprocess, sys, time, uuid, datetime as dt, urllib.request, pathlib
 
 FAULTS = pathlib.Path('/srv/flashticket-rca/faults')  # control/audit của hook (trước: /opt/flash-ticket-app/rca-faults)
-COMPOSE_CU = pathlib.Path('/srv/flashticket-rca/archive/2026-11/flash-ticket-app/compose-t062')  # chỉ khi không có compose-dir (hành vi cũ)
 STATE = pathlib.Path('/srv/flashticket-rca/faults/inject-state'); STATE.mkdir(parents=True, exist_ok=True)
 TOXI = 'http://127.0.0.1:8474'
 EVENT_ID = '3e7c1df9-ada4-4081-94a1-548b80a5da86'   # sự kiện tải mua vé (results/T-062/tai-2/BAN-GIAO-1-giao-dich.md)
@@ -63,7 +62,7 @@ def http(method, path, body=None):
 
 def compose_dir():
     """T-069: thư mục cấu hình hiệu lực của bản đang chạy (cho RECREATE-PAY). Biến môi trường trước, rồi file trạng thái
-    (bộ chạy gọi inject.py qua SSH không truyền biến môi trường). Không có thì None (hành vi cũ, compose-t062)."""
+    (bộ chạy gọi inject.py qua SSH không truyền biến môi trường). Không có thì None: nơi gọi dừng, không tự chọn bộ khác."""
     d = os.environ.get('RCA_APP_COMPOSE_DIR', '').strip()
     if not d and (STATE / 'compose-dir').exists():
         d = (STATE / 'compose-dir').read_text().strip()
@@ -123,23 +122,27 @@ def start(cell, seconds):
         # tạo lại đúng một lần với image đang chạy; không tự hoàn tác.
         # T-069: có thư mục cấu hình hiệu lực (biến RCA_APP_COMPOSE_DIR, hoặc file STATE/compose-dir) thì dùng file
         # <dir>/payment-service.yml (đã có image, SERVICE_VERSION; như deploy.sh trien-khai, không cần IMAGE) và kiểm
-        # container mới tạo từ đúng file đó. Không có → hành vi cũ: compose/env -t062 (cùng cách deploy-t062.sh).
+        # container mới tạo từ đúng file đó. Thiếu thư mục, hoặc file khác bộ Compose container đang chạy → dừng trước khi
+        # tạo lại (đợt dọn 11/2026 bỏ nhánh dự phòng compose-t062: bộ đó không còn đủ env).
         cu = sh('docker', 'inspect', c['container'], '--format', '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}').split()
         d = compose_dir()
-        if d:
-            f = str(pathlib.Path(d) / c['compose'])
-            r = subprocess.run(['docker', 'compose', '-p', c['project'], '-f', f, 'up', '-d', '--force-recreate', '--no-deps'],
-                               cwd=d, capture_output=True, text=True, timeout=180)
-        else:
-            r = subprocess.run(['docker', 'compose', '-p', c['project'], '-f', c['compose'], 'up', '-d', '--force-recreate', '--no-deps'],
-                               cwd=str(COMPOSE_CU), env={**os.environ, 'IMAGE': cu[1]}, capture_output=True, text=True, timeout=180)
+        if not d:
+            raise RuntimeError('thiếu thư mục cấu hình hiệu lực: đặt RCA_APP_COMPOSE_DIR hoặc khôi phục '
+                               + str(STATE / 'compose-dir') + '; không tạo lại')
+        f = str(pathlib.Path(d) / c['compose'])
+        dang_chay = sh('docker', 'inspect', c['container'], '--format',
+                       '{{index .Config.Labels "com.docker.compose.project.config_files"}}', check=False).strip()
+        if dang_chay != f:
+            raise RuntimeError(f'bộ Compose đang chạy ({dang_chay}) khác {f}; không tạo lại')
+        r = subprocess.run(['docker', 'compose', '-p', c['project'], '-f', f, 'up', '-d', '--force-recreate', '--no-deps'],
+                           cwd=d, capture_output=True, text=True, timeout=180)
         moi = sh('docker', 'inspect', c['container'], '--format', '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}').split()
         cfg = sh('docker', 'inspect', c['container'], '--format',
                  '{{index .Config.Labels "com.docker.compose.project.config_files"}}', check=False).strip()
         out(op='recreate', cell=cell, rc=r.returncode, cu_id=cu[0], cu_started=cu[2], moi_id=moi[0], moi_started=moi[2], image=moi[1],
-            compose_dir=d or str(COMPOSE_CU), config_files=cfg, stderr_tail=r.stderr[-200:])
+            compose_dir=d, config_files=cfg, stderr_tail=r.stderr[-200:])
         if r.returncode != 0 or moi[0] == cu[0] or moi[1] != cu[1]: raise RuntimeError('recreate không đúng: rc/Id/image')
-        if d and cfg != f: raise RuntimeError('recreate không đúng: config_files ' + cfg)
+        if cfg != f: raise RuntimeError('recreate không đúng: config_files ' + cfg)
     if c['kind'] in ('toxic', 'pause'):
         # Tự gỡ đúng hạn trên exp-app, độc lập laptop (mất mạng laptop 13/11 04:19–05:00Z): tiến trình tách phiên,
         # ngủ tới hạn + 5 s rồi gọi stop (idempotent). Hook có lease tự hết; CPU có `timeout`.
