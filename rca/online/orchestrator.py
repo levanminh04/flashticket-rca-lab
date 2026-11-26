@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import secrets
+import shlex
 import subprocess
 import sys
 import time
@@ -150,8 +151,9 @@ class XuLy:
 
     def g1(self, oid, sc):
         f = OUT / 'su-co' / (sc['ma'] + '.json')
-        return json_cuoi(sh(f'sudo python3 -B {HERE}/g1_b.py --id {oid} --su-co {f} --goc {M1_ROOT} --ra {self.a.ra} '
-                            f'--khoi-tao {self.a.khoi_tao}', 900))
+        q = shlex.quote  # đích và nguồn đã chuẩn hóa ở main(); truyền mỗi giá trị đúng một đối số
+        return json_cuoi(sh(f'sudo python3 -B {HERE}/g1_b.py --id {q(oid)} --su-co {q(str(f))} --goc {M1_ROOT} '
+                            f'--ra {q(self.a.ra)} --khoi-tao {q(self.a.khoi_tao)}', 900))
 
     def xu_ly(self, sc):
         t = sc['t_hat']
@@ -250,8 +252,10 @@ def main():
     a = ap.parse_args()
     import g1_b  # kiểm đích sớm, cùng quy tắc với điểm ghi root (I9)
     a.ra = str(g1_b.kiem_dich(a.ra))
-    if a.khoi_tao.startswith('chep:'):
-        g1_b.kiem_nguon_chep(a.khoi_tao.split(':', 1)[1])
+    if a.khoi_tao.startswith('chep:'):  # truyền tiếp đường đã chuẩn hóa, không truyền lại chuỗi gốc
+        a.khoi_tao = 'chep:' + str(g1_b.kiem_nguon_chep(a.khoi_tao.split(':', 1)[1]))
+    elif a.khoi_tao != 'rong':
+        raise SystemExit('--khoi-tao chỉ nhận rong hoặc chep:<bộ dưới rca/results>')
     OUT.mkdir(parents=True, exist_ok=True)
     a.spool = a.spool or str(OUT / 'spool')
     lock = open(OUT / '.lock', 'w')

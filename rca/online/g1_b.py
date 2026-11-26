@@ -26,9 +26,28 @@ CAM_GHI = '/srv/flashticket-rca/rca/results/dev'
 GOC_GHI = '/srv/flashticket-rca/rca/results'  # mọi bộ trực tuyến nằm ngay dưới thư mục này (I9)
 
 
-def kiem_dich(ra, goc=GOC_GHI):
+def quet_cay(r, uid_chu, nhan):
+    """Quét cả cây `r` (không theo liên kết): từ chối liên kết tượng trưng, mục không thuộc `uid_chu`, và file có hơn
+    một hard link. Bộ kết quả do tiến trình root tạo nên mọi mục phải thuộc root (REVIEW-4 R2)."""
+    import stat
+    if not os.path.lexists(r):
+        return
+    muc = [str(r)]
+    for d, ds, fs in os.walk(r, followlinks=False):
+        muc += [os.path.join(d, x) for x in ds + fs]
+    for x in muc:
+        st = os.lstat(x)
+        if stat.S_ISLNK(st.st_mode):
+            raise SystemExit(f'{nhan} có liên kết tượng trưng: {x}; từ chối (I9)')
+        if st.st_uid != uid_chu:
+            raise SystemExit(f'{nhan} có mục không thuộc uid {uid_chu}: {x}; từ chối (I9)')
+        if stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+            raise SystemExit(f'{nhan} có file nhiều hard link: {x}; từ chối (I9)')
+
+
+def kiem_dich(ra, goc=GOC_GHI, uid_chu=0):
     """Đích ghi G1 (tiến trình chạy root) phải là `<goc>/online-<tên>`: con trực tiếp của gốc đã chuẩn hóa, không phải
-    liên kết tượng trưng, không phải bộ `dev`, và không có liên kết tượng trưng ở các thư mục con sẽ ghi.
+    bộ `dev`. Nếu bộ đã có: cả cây không có liên kết tượng trưng, mọi mục thuộc root (quet_cay).
     Trả đường đã chuẩn hóa; mọi thao tác ghi sau đó dùng đường này."""
     import re
     p = pathlib.Path(ra)
@@ -38,21 +57,16 @@ def kiem_dich(ra, goc=GOC_GHI):
     ten_dung = re.fullmatch(r'online-[a-z0-9][a-z0-9-]*', r.name)
     if r.parent != pathlib.Path(goc).resolve() or not ten_dung or r == pathlib.Path(CAM_GHI).resolve():
         raise SystemExit(f'chỉ ghi vào {goc}/online-* (I9); nhận {ra}')
-    for sub in ('du-lieu', 'service-graph'):
-        if (r / sub).is_symlink():
-            raise SystemExit(f'{r / sub} là liên kết tượng trưng; từ chối (I9)')
+    quet_cay(r, uid_chu, 'đích ghi')
     return r
 
 
-def kiem_nguon_chep(src, goc=GOC_GHI):
-    """Nguồn `--khoi-tao chep:` phải là một bộ ngay dưới gốc kết quả, và cây chép không chứa liên kết tượng trưng."""
+def kiem_nguon_chep(src, goc=GOC_GHI, uid_chu=0):
+    """Nguồn `--khoi-tao chep:` phải là một bộ ngay dưới gốc kết quả; cả cây qua quet_cay như đích."""
     s = pathlib.Path(src)
     if s.is_symlink() or s.resolve().parent != pathlib.Path(goc).resolve():
         raise SystemExit(f'nguồn chép phải là một bộ ngay dưới {goc}; nhận {src}')
-    for sub in ('du-lieu', 'service-graph'):
-        for x in [s / sub, *((s / sub).rglob('*') if (s / sub).exists() else [])]:
-            if x.is_symlink():
-                raise SystemExit(f'nguồn chép có liên kết tượng trưng: {x}')
+    quet_cay(s.resolve(), uid_chu, 'nguồn chép')
     return s.resolve()
 NGUON_B = 't073-b'
 PHIEN_BAN_KHOI = 'b-1'
@@ -122,6 +136,7 @@ def main():
     idx = json.loads(pathlib.Path(a.chi_muc_nguon).read_text(encoding='utf-8'))
     b = {k: v for k, v in next(x for x in idx['ban'] if x['ban'] == BAN).items() if k != 'cac_ca'}
     kt = khoi_tao(a.ra, a.chi_muc_nguon, a.khoi_tao, BAN)
+    kiem_dich(a.ra)  # quét lại cả cây ngay trước các thao tác ghi ca (sau khi khởi tạo/chép)
     goc = pathlib.Path(a.goc)
     out = goc / 'v082' / ca / 'method-output-1.json'
     X = S.nap_bo_xuat(a.ra, goc / 'cases', goc / 'bo-sung')

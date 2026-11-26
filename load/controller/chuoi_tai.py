@@ -32,6 +32,10 @@ Dừng chuỗi (không phát lượt kế; ghi `dung_chuoi`, trạng thái cuố
   - lỗi start thuộc loại chung, hoặc 2 lượt liền không start được (cả hai khôi phục từ nhật ký khi chạy lại,
     trừ khi đã có lần chạy với --tiep-sau-dung sau bản ghi `hong` đó);
   - 20 lần `get` lỗi liền (chưa xác minh trạng thái container);
+  - tai_linux từ chối tag đã dùng (`tag_da_dung`, kể cả tag chỉ còn trong archive): không gọi `get`, tag giữ trạng
+    thái này ở mọi lần chạy lại; người vận hành kiểm lịch, dùng kho và tag mới;
+  - container thấy qua `get` bắt đầu sớm hơn mốc `sap_phat` của tag quá 120 s (container của lượt cũ), ở nhánh
+    start lỗi lẫn lúc chờ/tiếp nhận sau gián đoạn → chua_xac_minh, không chấm, không receive;
   - quá hạn: sau `stop --tag`, chờ thêm 300 s mà vẫn Running (cần can thiệp);
   - kiểm telemetry: 0 mẫu gateway (mất quan sát), hoặc truy vấn lỗi / thiếu mốc giờ (chưa kiểm được).
 Lỗi cục bộ (start lỗi trước docker run, không thuộc loại chung; container thoát lỗi; receive lỗi 3 lần):
@@ -82,6 +86,7 @@ QUA_HAN_S = float(os.environ.get('CHUOI_TAI_QUA_HAN_S', '900'))   # quá seconds
 SAU_STOP_S = float(os.environ.get('CHUOI_TAI_SAU_STOP_S', '300'))  # sau stop chờ thêm tối đa 300 s
 GET_LOI_TOI_DA = 20
 KHUC_S = 600  # I11: mỗi truy vấn đọc ≤ 10 phút
+LECH_DONG_HO_S = 120  # container chỉ thuộc lần phát này nếu bắt đầu sau mốc sap_phat trừ khoảng lệch đồng hồ obs ↔ máy tải
 
 
 def utc():
@@ -138,6 +143,8 @@ class Chuoi:
 
     def buoc_tag(self, tag):
         """Trạng thái hiện tại của tag theo nhật ký."""
+        if self.cua_tag(tag, 'tag_da_dung'):
+            return 'tag_da_dung'  # tai_linux từ chối tag: lượt chưa phát, mọi container/dữ liệu cùng tên là của lượt cũ
         if self.cua_tag(tag, 'hong'):
             return 'ket_thuc_hong'
         co_nhan = bool(self.cua_tag(tag, 'nhan'))
@@ -265,9 +272,18 @@ class Chuoi:
             return None
         loi = str(r.get('error'))
         self.ghi('phat_loi', tag=tag, loi=loi)
+        if loi.startswith('Tag already used'):
+            # Từ chối trước đăng nhập/đổi token: chắc chắn chưa phát. Không gọi get (container cùng tên là của lượt cũ).
+            self.ghi('tag_da_dung', tag=tag, loi=loi, ly_do='tag đã có dấu vết; người vận hành kiểm lịch, dùng tag mới')
+            return 'tag_da_dung'
         g = self.tl('get', '--tag', tag, timeout=180)
-        if g.get('ok'):  # start báo lỗi nhưng container có: coi như đã phát, đi tiếp chờ
-            self.ghi('phat_co_container', tag=tag, state=g['result']['state'])
+        if g.get('ok'):  # start báo lỗi nhưng container có: chỉ nhận khi container thuộc đúng lần phát này
+            st = g['result']['state']
+            dung_lan, ly_do = self.cua_lan_nay(tag, st)
+            if not dung_lan:
+                self.ghi('container_cu', tag=tag, state=st, ly_do=ly_do)
+                return 'chua_xac_minh'
+            self.ghi('phat_co_container', tag=tag, state=st)
             return None
         # get lỗi không phân biệt "không có container" với lỗi SSH (tai_linux giấu stderr), nên chỉ ghi `hong`
         # khi chính lỗi start chứng minh lượt chưa tới `docker run`.
@@ -280,6 +296,19 @@ class Chuoi:
         chung = any(s in loi for s in LOI_CHUNG)
         self.ghi('hong', tag=tag, ly_do='start lỗi trước docker run', loi_chung=chung)
         return 'loi_chung' if chung else 'hong_start'
+
+    def cua_lan_nay(self, tag, st):
+        """Container `st` (docker inspect State) có thuộc lần phát đang theo dõi không: bắt đầu không sớm hơn mốc
+        `sap_phat` cuối của tag quá LECH_DONG_HO_S. Không có mốc hoặc mốc hỏng → không nhận."""
+        moc = self.cua_tag(tag, 'sap_phat')
+        try:
+            t0 = dt.datetime.fromisoformat(moc[-1]['utc']).timestamp()
+            bd = docker_ts(st['StartedAt'])
+        except (IndexError, KeyError, TypeError, ValueError) as e:
+            return False, 'không đối chiếu được mốc bắt đầu: ' + str(e)[:150]
+        if bd < t0 - LECH_DONG_HO_S:
+            return False, f'container bắt đầu {st["StartedAt"]}, sớm hơn sap_phat {moc[-1]["utc"]} quá {LECH_DONG_HO_S} s'
+        return True, None
 
     def cho_xong(self, l):
         """Trả ('xong', state) | ('dung', lý do) | ('chua_xac_minh', lý do) | ('can_can_thiep', lý do)."""
@@ -300,6 +329,9 @@ class Chuoi:
             if g.get('ok'):
                 loi_lien = 0
                 st = g['result']['state']
+                dung_lan, ly_do = self.cua_lan_nay(tag, st)
+                if not dung_lan:  # cả nhánh tiếp nhận sau gián đoạn: không chấm container của lượt cũ
+                    return 'chua_xac_minh', ly_do
                 if not st.get('Running'):
                     return 'xong', st
                 now = time.time()
@@ -362,6 +394,8 @@ class Chuoi:
         (đi tiếp) hoặc loi_chung | dung | chua_xac_minh | can_can_thiep | chua_kiem_duoc | mat_telemetry (dừng)."""
         tag = l['tag']
         buoc = self.buoc_tag(tag)
+        if buoc == 'tag_da_dung':
+            return 'tag_da_dung'
         if buoc != 'chua_phat':
             self.ghi('tiep_nhan', tag=tag, buoc=buoc)
         if buoc == 'chua_phat':
@@ -442,7 +476,8 @@ class Chuoi:
                 return self.dung(ld, 2, truoc_tag=tag)
             kq = self.chay_luot(l)
             self.ghi('ket_qua_luot', tag=tag, ket_qua=kq)
-            if kq in ('loi_chung', 'dung', 'chua_xac_minh', 'can_can_thiep', 'chua_kiem_duoc', 'mat_telemetry'):
+            if kq in ('loi_chung', 'dung', 'chua_xac_minh', 'can_can_thiep', 'chua_kiem_duoc', 'mat_telemetry',
+                      'tag_da_dung'):
                 return self.dung(kq, 3, sau_tag=tag)
             hong_lien = hong_lien + 1 if kq == 'hong_start' else 0
             if hong_lien >= 2:
